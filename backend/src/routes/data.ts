@@ -1,13 +1,24 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { query } from '../lib/postgres';
 
+async function tableExists(tableName: string): Promise<boolean> {
+  const result = await query(
+    `SELECT 1 FROM information_schema.tables
+     WHERE table_schema = 'public' AND table_name = $1`,
+    [tableName]
+  );
+  return result.rows.length > 0;
+}
+
 export default async function dataRoutes(fastify: FastifyInstance) {
   // Get all rows from a table
   fastify.get<{ Params: { tableName: string } }>(
     '/api/data/:tableName',
     async (request: FastifyRequest<{ Params: { tableName: string } }>, reply: FastifyReply) => {
       const { tableName } = request.params;
-      // Safe: tableName is validated against information_schema before use
+      if (!(await tableExists(tableName))) {
+        return reply.status(404).send({ error: `Table "${tableName}" not found` });
+      }
       const result = await query(`SELECT * FROM "${tableName}" ORDER BY created_at DESC`);
       return reply.send({ rows: result.rows });
     }
@@ -21,6 +32,9 @@ export default async function dataRoutes(fastify: FastifyInstance) {
       reply: FastifyReply
     ) => {
       const { tableName } = request.params;
+      if (!(await tableExists(tableName))) {
+        return reply.status(404).send({ error: `Table "${tableName}" not found` });
+      }
       const body = request.body;
 
       const columns = Object.keys(body).filter((k) => k !== 'id' && k !== 'created_at');

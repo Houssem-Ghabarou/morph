@@ -6,7 +6,7 @@ export default async function schemaRoutes(fastify: FastifyInstance) {
   fastify.get('/api/schema', async (_request: FastifyRequest, reply: FastifyReply) => {
     const result = await query(
       `SELECT table_name FROM information_schema.tables
-       WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+       WHERE table_schema = 'public' AND table_type = 'BASE TABLE' AND table_name NOT LIKE 'morph_%'
        ORDER BY table_name`
     );
     return reply.send({ tables: result.rows.map((r) => r.table_name) });

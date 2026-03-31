@@ -5,6 +5,26 @@ import { ChatRequest, ChatResponse, TableSchema } from '../types';
 
 const PG_DUPLICATE_TABLE = '42P07';
 
+function detectChartType(sql: string, rows: Record<string, unknown>[]): 'bar' | 'stat' | 'table' {
+  const upper = sql.toUpperCase();
+  const hasGroupBy = upper.includes('GROUP BY');
+  const hasAggregate = /\b(COUNT|SUM|AVG|MAX|MIN)\s*\(/.test(upper);
+  if (rows.length === 1 && Object.keys(rows[0]).length <= 2 && !hasGroupBy) return 'stat';
+  if (hasGroupBy && hasAggregate) return 'bar';
+  return 'table';
+}
+
+function buildQueryMessage(chartType: 'bar' | 'stat' | 'table', rows: Record<string, unknown>[], _userMessage: string): string {
+  if (rows.length === 0) return 'The query returned no results.';
+  if (chartType === 'stat') {
+    const val = Object.values(rows[0])[0];
+    const label = Object.keys(rows[0])[0].replace(/_/g, ' ');
+    return `${label}: **${val}**`;
+  }
+  if (chartType === 'bar') return `Here's the breakdown — ${rows.length} group${rows.length !== 1 ? 's' : ''}.`;
+  return `Query returned ${rows.length} row${rows.length !== 1 ? 's' : ''}.`;
+}
+
 function detectAction(sql: string): ChatResponse['action'] {
   const upper = sql.toUpperCase().trimStart();
   if (upper.startsWith('CREATE TABLE')) return 'create';
@@ -94,7 +114,111 @@ export default async function chatRoutes(fastify: FastifyInstance) {
         return reply.status(502).send({ error: 'Could not reach the LLM. Check your API key.' });
       }
 
+      // Handle PREFILL response from LLM
+      if (sql.startsWith('PREFILL|')) {
+        const parts = sql.split('|');
+        const prefillTableName = parts[1];
+        let prefillValues: Record<string, unknown> = {};
+        try {
+          prefillValues = JSON.parse(parts.slice(2).join('|'));
+        } catch {
+          fastify.log.warn('Failed to parse PREFILL JSON, using empty values');
+        }
+
+        let prefillSchema: TableSchema | null = null;
+        try {
+          const columns = await getTableSchema(prefillTableName);
+          prefillSchema = {
+            tableName: prefillTableName,
+            columns: columns.map((col) => ({
+              name: col.column_name,
+              type: col.data_type,
+              nullable: col.is_nullable === 'YES',
+            })),
+          };
+        } catch {
+          fastify.log.error('Failed to get schema for prefill table: ' + prefillTableName);
+          return reply.status(500).send({ error: 'Could not fetch table schema for prefill' });
+        }
+
+        // Save only the user message for prefill — no system response yet
+        let sessionName: string | undefined;
+        await runInTransaction(async (client) => {
+          await client.query(
+            `INSERT INTO morph_messages (session_id, role, text) VALUES ($1, 'user', $2)`,
+            [sessionId, message]
+          );
+          const nameResult = await client.query(
+            `UPDATE morph_sessions
+             SET name = LEFT($2, 45), updated_at = NOW()
+             WHERE id = $1 AND name = 'New Chat'
+             RETURNING name`,
+            [sessionId, message]
+          );
+          if (nameResult.rows.length > 0) {
+            sessionName = nameResult.rows[0].name;
+          } else {
+            await client.query(
+              `UPDATE morph_sessions SET updated_at = NOW() WHERE id = $1`,
+              [sessionId]
+            );
+          }
+        });
+
+        const prefillResponse: ChatResponse = {
+          sql,
+          message: `Ready to insert into \`${prefillTableName}\`. Review the form below.`,
+          schema: prefillSchema,
+          action: 'prefill',
+          alreadyExisted: false,
+          values: prefillValues,
+          ...(sessionName ? { sessionName } : {}),
+        };
+        return reply.send(prefillResponse);
+      }
+
       const action = detectAction(sql);
+
+      if (action === 'select') {
+        let rows: Record<string, unknown>[] = [];
+        try {
+          const result = await query(sql);
+          rows = result.rows;
+        } catch (err) {
+          fastify.log.error(err);
+          return reply.status(500).send({ error: 'Query execution failed', details: String(err) });
+        }
+
+        const columns = rows.length > 0 ? Object.keys(rows[0]) : [];
+        const chartType = detectChartType(sql, rows);
+        const queryMessage = buildQueryMessage(chartType, rows, message);
+
+        await runInTransaction(async (client) => {
+          await client.query(
+            `INSERT INTO morph_messages (session_id, role, text) VALUES ($1, 'user', $2)`,
+            [sessionId, message]
+          );
+          await client.query(
+            `INSERT INTO morph_messages (session_id, role, text) VALUES ($1, 'system', $2)`,
+            [sessionId, queryMessage]
+          );
+          await client.query(
+            `UPDATE morph_sessions SET updated_at = NOW() WHERE id = $1`,
+            [sessionId]
+          );
+        });
+
+        return reply.send({
+          sql,
+          message: queryMessage,
+          schema: null,
+          action: 'query',
+          rows,
+          columns,
+          chartType,
+        } satisfies ChatResponse);
+      }
+
       const tableName = extractTableName(sql);
       let alreadyExisted = false;
 
@@ -157,8 +281,8 @@ export default async function chatRoutes(fastify: FastifyInstance) {
           );
         }
 
-        // Register table in session (only for CREATE)
-        if (action === 'create' && tableName) {
+        // Register table in session (for CREATE and ALTER)
+        if ((action === 'create' || action === 'alter') && tableName) {
           await client.query(
             `INSERT INTO morph_session_tables (session_id, table_name)
              VALUES ($1, $2)

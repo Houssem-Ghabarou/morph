@@ -12,7 +12,20 @@ Rules:
 - For INSERT: if session tables are provided, you MUST insert into one of those existing tables. Use the exact column names listed. Values must match the column types (quote strings, use numbers for integers/floats).
 - If the intent is ambiguous and no tables exist yet, default to CREATE TABLE.
 - Output exactly one SQL statement per response.
-- Never invent table names. If asked to add/insert data and session tables exist, always INSERT into an existing table.`;
+- Never invent table names. If asked to add/insert data and session tables exist, always INSERT into an existing table.
+
+SPECIAL RULE FOR INSERT INTENT:
+When the user wants to add, log, insert, or record data AND session tables already exist:
+- Do NOT generate INSERT SQL
+- Instead output exactly: PREFILL|<table_name>|<json>
+- <table_name> must be one of the existing session tables
+- <json> must contain ALL non-system columns of that table as keys. Extract values from the user's message. Use "" for unknown values.
+- Example: PREFILL|inventory|{"wood_type":"White Oak","quantity":200,"vendor":"Atlas Lumber","drying_time":"","moisture_content":""}
+- Only use PREFILL when session tables exist. If no tables exist yet, use INSERT SQL as normal.
+- For analytical questions (how much, how many, which, show me, total, average, count): output a SELECT query.
+- SELECT queries may use JOINs, GROUP BY, ORDER BY, LIMIT, aggregate functions (SUM, COUNT, AVG, MAX, MIN).
+- Always alias aggregate columns: SELECT wood_type, SUM(quantity) AS total_quantity FROM ...
+- For single-value results (total, average, count), output a simple SELECT with one aggregate and a clear alias.`;
 
 type Provider = 'groq' | 'claude';
 

@@ -4,7 +4,11 @@
       "Bash(npx create-next-app@latest frontend --typescript --tailwind --app --no-git --yes)",
       "Bash(cd:*)",
       "Bash(npm init:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(npx create-next-app@latest . --typescript --tailwind --app --no-eslint --no-src-dir --import-alias \"@/*\" --yes)",
+      "Bash(rm \"C:/Users/imaxe/OneDrive/Desktop/imaxeam/morph/frontend/package-lock.json\")",
+      "Bash(npx tsc:*)",
+      "Bash(npm run:*)"
     ]
   }
 }

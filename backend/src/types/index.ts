@@ -18,10 +18,14 @@ export interface ChatResponse {
   sql: string;
   message: string;
   schema: TableSchema | null;
-  action: 'create' | 'alter' | 'insert' | 'select' | 'unknown';
+  action: 'create' | 'alter' | 'insert' | 'select' | 'unknown' | 'prefill' | 'query';
   alreadyExisted?: boolean;
   sessionName?: string;
   suggestion?: string;
+  values?: Record<string, unknown>;
+  rows?: Record<string, unknown>[];
+  columns?: string[];
+  chartType?: 'bar' | 'stat' | 'table';
 }
 
 export interface Session {
