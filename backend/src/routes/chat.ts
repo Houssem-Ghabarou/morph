@@ -25,13 +25,15 @@ function stripPrefix(name: string, prefix: string): string {
  * - Stray backtick quoting (MySQL style) → remove
  */
 function sanitizeSQL(sql: string): string {
-  // Replace backtick quoting with plain identifiers
   sql = sql.replace(/`(\w+)`/g, '$1');
-  // Fix "CREATE TABLE foo bar (...)" → "CREATE TABLE foo_bar (...)"
   sql = sql.replace(
     /(CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?)([a-z][a-z0-9]*(?:\s+[a-z][a-z0-9]*)+)(\s*\()/gi,
-    (_m, prefix, name, paren) => prefix + name.trim().replace(/\s+/g, '_') + paren
+    (_m, pre, name, paren) => pre + name.trim().replace(/\s+/g, '_') + paren
   );
+  // Strip markdown code fences that LLMs sometimes emit
+  sql = sql.replace(/^```(?:sql)?\s*/i, '').replace(/\s*```\s*$/, '');
+  // Remove leading/trailing whitespace and stray semicolons at the end
+  sql = sql.trim().replace(/;\s*$/, '');
   return sql;
 }
 
@@ -59,8 +61,8 @@ function rewriteSQLForSession(
   if (createMatch) {
     const raw = createMatch[1];
     let result = sql;
-    // Replace already-known display names in the body (e.g. REFERENCES suppliers → REFERENCES s3_suppliers)
-    for (const [display, actual] of tableMap.entries()) {
+    const sorted = [...tableMap.entries()].sort((a, b) => b[0].length - a[0].length);
+    for (const [display, actual] of sorted) {
       result = result.replace(new RegExp(`\\b${display}\\b`, 'g'), actual);
     }
     // Prefix the new table name itself
@@ -73,7 +75,8 @@ function rewriteSQLForSession(
   }
 
   let result = sql;
-  for (const [display, actual] of tableMap.entries()) {
+  const sorted = [...tableMap.entries()].sort((a, b) => b[0].length - a[0].length);
+  for (const [display, actual] of sorted) {
     result = result.replace(new RegExp(`\\b${display}\\b`, 'g'), actual);
   }
   return result;
@@ -211,18 +214,23 @@ export default async function chatRoutes(fastify: FastifyInstance) {
                 .map((c) => `${c.column_name} (${c.data_type})`)
                 .join(', ');
 
-              // Fetch a sample row so the LLM understands what data is stored
               let sampleLine = '';
               try {
+                const countRes = await query(`SELECT COUNT(*) AS cnt FROM "${actual}"`);
+                const rowCount = countRes.rows[0]?.cnt ?? 0;
                 const sample = await query(
-                  `SELECT * FROM "${actual}" ORDER BY id DESC LIMIT 1`
+                  `SELECT * FROM "${actual}" ORDER BY id DESC LIMIT 3`
                 );
                 if (sample.rows.length > 0) {
-                  const sRow = sample.rows[0];
-                  const preview = Object.fromEntries(
-                    Object.entries(sRow).filter(([k]) => k !== 'id' && k !== 'created_at')
-                  );
-                  sampleLine = `\n  sample: ${JSON.stringify(preview)}`;
+                  const previews = sample.rows.map((sRow) => {
+                    const preview = Object.fromEntries(
+                      Object.entries(sRow as Record<string, unknown>).filter(([k]) => k !== 'id' && k !== 'created_at')
+                    );
+                    return JSON.stringify(preview);
+                  });
+                  sampleLine = `\n  rows (${rowCount} total): ${previews.join(', ')}`;
+                } else {
+                  sampleLine = `\n  rows: 0 (empty table)`;
                 }
               } catch {
                 // Sample is best-effort
@@ -433,16 +441,15 @@ export default async function chatRoutes(fastify: FastifyInstance) {
           const tableEntries = await Promise.all(
             Array.from(tableMap.entries()).map(async ([display, actual]) => {
               const res = await query(`SELECT * FROM "${actual}" ORDER BY id ASC LIMIT 100`);
-              if (res.rows.length === 0) return null;
+              if (res.rows.length === 0) return `=== ${display} (0 rows) ===\n(empty)`;
               const cleaned = res.rows.map((r) => {
                 const { id: _id, created_at: _ca, ...rest } = r as Record<string, unknown> & { id: unknown; created_at: unknown };
                 return rest;
               });
-              return `=== ${display} ===\n${cleaned.map((r) => JSON.stringify(r)).join('\n')}`;
+              return `=== ${display} (${res.rows.length} rows) ===\n${cleaned.map((r) => JSON.stringify(r)).join('\n')}`;
             })
           );
-          const entries = tableEntries.filter(Boolean);
-          if (entries.length > 0) fullSessionData = entries.join('\n\n');
+          fullSessionData = tableEntries.join('\n\n');
         } catch {
           // Best-effort — don't block
         }

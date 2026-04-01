@@ -13,10 +13,22 @@ Rules:
 - If the intent is ambiguous and no tables exist yet, default to CREATE TABLE.
 - Never invent table names. If asked to add/insert data and session tables exist, always INSERT into an existing table.
 
+COLUMN EXTRACTION (critical — follow precisely):
+- Extract columns DIRECTLY from what the user describes. Do NOT invent columns the user did not mention.
+- If the user says "track clients, their meals with calories, and training programs with exercises":
+  - clients should have columns the user implies: name (text), age (integer), weight (numeric), goal (text) — based on the domain context
+  - meals should have: client (text), food (text), calories (integer) — because the user said "with calories"
+  - training_programs should have: client (text), program (text), sessions_per_week (integer), duration_weeks (integer)
+- Choose appropriate PostgreSQL types: TEXT for names/descriptions, INTEGER for counts/whole numbers, NUMERIC for measurements (weight, height, price), DATE for dates, BOOLEAN for yes/no.
+- For a gym/fitness domain: always include age (integer), weight (numeric), goal (text) on a clients table.
+- For a food/meal domain: always include calories (integer) on meals.
+- NEVER add generic columns like "email" unless the user specifically mentions email.
+
 LINKING RULE (always apply):
 - Never use integer foreign keys or REFERENCES constraints. They cause errors.
-- To link a table to another, add a plain TEXT column named after the related table (singular, no _id).
+- To link a table to another, add a plain TEXT column named after the related table (singular form, no _id suffix).
 - Example: meals should have "client TEXT" not "client_id INT REFERENCES clients(id)".
+- For compound table names use the singular form: workout_sessions linking to training_programs → add "training_program TEXT".
 - If "clients" already exists in the session and you create "training_programs", add: client TEXT
 - Always check existing session tables and add a link column if the new table logically belongs to one.
 
@@ -25,6 +37,7 @@ When the user asks to track/manage multiple new concepts at once:
 - Output ALL CREATE TABLE statements separated by a line containing exactly: ---
 - Existing session tables are already created — do NOT re-create them.
 - For a single new table request, output exactly one CREATE TABLE statement.
+- Only create tables for distinct entity types the user explicitly mentions. Do NOT create extra tables the user did not ask for.
 
 INTENT CLASSIFICATION — apply this before anything else:
 1. CREATE intent: user describes a new type of thing to manage/track/store (even if tables exist). Signals: "I want to track X", "add a X table", "I need to manage X", "track X for my clients", "store X". → CREATE TABLE (or multi-table if multiple entities).
@@ -35,11 +48,14 @@ When unsure between CREATE and INSERT: if the user mentions a concept/entity typ
 
 PREFILL RULE (only for INSERT intent):
 When intent is INSERT and session tables already exist:
-- Do NOT generate INSERT SQL
+- Do NOT generate INSERT SQL.
 - Output exactly: PREFILL|<table_name>|<json>
-- <table_name> must be one of the existing session tables that best matches the intent
-- <json> must contain ALL non-system columns as keys. Extract values from the message. Use "" for unknown values.
-- Example: PREFILL|inventory|{"wood_type":"White Oak","quantity":200,"vendor":"Atlas Lumber"}
+- <table_name> must be one of the existing session tables (use display names shown in session context, not prefixed names).
+- <json> must contain ALL non-system columns (exclude id and created_at) as keys.
+- Extract EVERY value from the user's message. Map each value to the correct column by meaning, not position.
+  - "Ahmed, 30 years old, 78kg, goal is muscle gain" → {"name":"Ahmed","age":30,"weight":78,"goal":"muscle gain"}
+  - "Log lunch for houssem: grilled chicken with rice, 650 calories" → {"client":"houssem","food":"grilled chicken with rice","calories":650}
+- Use "" for columns where the user provided no value. Use actual numbers (not strings) for numeric columns.
 - If no tables exist yet, use INSERT SQL as normal.
 
 SELECT RULES:
@@ -47,7 +63,9 @@ SELECT RULES:
 - May use JOINs, GROUP BY, ORDER BY, LIMIT, aggregate functions (SUM, COUNT, AVG, MAX, MIN).
 - Always alias aggregates: SELECT wood_type, SUM(quantity) AS total_quantity FROM ...
 - For single-value results, use one aggregate with a clear alias.
-- Always use ILIKE instead of = for text/name filters (case-insensitive). Example: WHERE name ILIKE 'houssem'.`;
+- Always use ILIKE instead of = for text/name filters (case-insensitive). Example: WHERE name ILIKE 'houssem'.
+- For cross-table questions, use JOINs: JOIN on the link column matching the linked table's name column. Example: JOIN clients ON meals.client ILIKE clients.name
+- For comparison queries ("compare X and Y"), return rows for ALL compared entities, not just one.`;
 
 type Provider = 'groq' | 'claude';
 
@@ -108,15 +126,19 @@ export async function generateSQL(
 // ─── Query interpretation ─────────────────────────────────────────────────────
 
 const INTERPRET_PROMPT = `You are a helpful data analyst inside Morph, a business OS.
-You are given the user's question and ALL data from every table in the session.
-Use the full dataset to answer accurately — never say data is missing if it appears in the full session data.
-Rules:
-- Be concise (1-3 sentences max)
-- Be specific — use the actual values from the data
-- If the question is health/fitness related, give a simple assessment with numbers
-- If comparing entities, include values for all compared entities
-- No markdown, no bullet points, no code
-- Never mention SQL or databases`;
+You are given the user's question, the SQL query result, and the full session data from all tables.
+
+CRITICAL RULES — follow these exactly:
+- ONLY reference data that literally appears in the provided dataset. NEVER invent names, numbers, or values.
+- If the query returned no rows or null values, say so honestly. Do NOT fabricate results.
+- If the full session data is empty or has no rows, say "No data has been added yet."
+- Be concise (1-3 sentences max).
+- Be specific — use the EXACT values from the data (copy names and numbers directly).
+- If the question is health/fitness related, give a simple assessment using the actual numbers from the data.
+- If comparing entities, include the actual values for ALL compared entities from the data.
+- No markdown, no bullet points, no code.
+- Never mention SQL, databases, tables, columns, or queries.
+- Never say "based on the data" — just give the answer directly.`;
 
 export async function interpretQueryResult(
   userMessage: string,
@@ -125,12 +147,12 @@ export async function interpretQueryResult(
   fullSessionData?: string
 ): Promise<string> {
   const rowSummary = rows.length === 0
-    ? 'No data found.'
-    : rows.slice(0, 20).map((r) => JSON.stringify(r)).join('\n');
+    ? 'The query returned 0 rows — no matching data exists.'
+    : `${rows.length} row(s):\n${rows.slice(0, 20).map((r) => JSON.stringify(r)).join('\n')}`;
 
   const dataSection = fullSessionData
-    ? `Full session data:\n${fullSessionData}\n\nQuery results (primary):\n${rowSummary}`
-    : `Query results:\n${rowSummary}`;
+    ? `Full session data (this is all the data that exists — do not reference anything not listed here):\n${fullSessionData}\n\nSQL query results:\n${rowSummary}`
+    : `SQL query results:\n${rowSummary}`;
 
   const prompt = `${sessionContext ? sessionContext + '\n\n' : ''}User asked: "${userMessage}"\n\n${dataSection}`;
 
