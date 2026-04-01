@@ -82,6 +82,50 @@ function rewriteSQLForSession(
   return result;
 }
 
+/** Parse INSERT INTO table (col1, col2) VALUES (val1, val2) into { col1: val1, col2: val2 } */
+function parseInsertValues(sql: string, schema: TableSchema): Record<string, unknown> {
+  const values: Record<string, unknown> = {};
+  const userCols = schema.columns.filter((c) => c.name !== 'id' && c.name !== 'created_at' && c.name !== 'updated_at');
+
+  // Initialize all columns with empty strings
+  for (const col of userCols) values[col.name] = '';
+
+  try {
+    const colMatch = sql.match(/INSERT\s+INTO\s+\w+\s*\(([^)]+)\)/i);
+    const valMatch = sql.match(/VALUES\s*\(([^)]+)\)/i);
+    if (!colMatch || !valMatch) return values;
+
+    const cols = colMatch[1].split(',').map((c) => c.trim().replace(/"/g, ''));
+    const rawVals = valMatch[1];
+
+    // Parse values respecting quoted strings
+    const parsedVals: string[] = [];
+    let current = '';
+    let inQuote = false;
+    for (const char of rawVals) {
+      if (char === "'" && !inQuote) { inQuote = true; continue; }
+      if (char === "'" && inQuote) { inQuote = false; continue; }
+      if (char === ',' && !inQuote) { parsedVals.push(current.trim()); current = ''; continue; }
+      current += char;
+    }
+    parsedVals.push(current.trim());
+
+    for (let i = 0; i < cols.length && i < parsedVals.length; i++) {
+      const colName = cols[i];
+      let val: unknown = parsedVals[i];
+      if (val === 'NULL' || val === 'null') val = '';
+      else if (val === 'NOW()' || val === 'CURRENT_DATE') val = new Date().toISOString().split('T')[0];
+      else if (!isNaN(Number(val)) && val !== '') val = Number(val);
+      const schemaCol = userCols.find((c) => c.name === colName);
+      if (schemaCol) values[colName] = val;
+    }
+  } catch {
+    // Best-effort parsing — return whatever we got
+  }
+
+  return values;
+}
+
 function detectChartType(sql: string, rows: Record<string, unknown>[]): 'bar' | 'stat' | 'table' {
   const upper = sql.toUpperCase();
   const hasGroupBy = upper.includes('GROUP BY');
@@ -414,6 +458,55 @@ export default async function chatRoutes(fastify: FastifyInstance) {
       }
 
       const action = detectAction(sql);
+
+      // Intercept INSERT: convert to PREFILL so the user always gets a confirmation panel
+      if (action === 'insert') {
+        const insertTableName = extractTableName(sql);
+        if (insertTableName) {
+          let insertSchema: TableSchema | null = null;
+          try {
+            const cols = await getTableSchema(insertTableName);
+            insertSchema = {
+              tableName: insertTableName,
+              columns: cols.map((c) => ({ name: c.column_name, type: c.data_type, nullable: c.is_nullable === 'YES' })),
+            };
+          } catch {
+            fastify.log.warn('Could not fetch schema for INSERT table: ' + insertTableName);
+          }
+
+          if (insertSchema) {
+            const extractedValues = parseInsertValues(sql, insertSchema);
+
+            let sessionName: string | undefined;
+            await runInTransaction(async (client) => {
+              await client.query(
+                `INSERT INTO morph_messages (session_id, role, text) VALUES ($1, 'user', $2)`,
+                [sessionId, message]
+              );
+              const nameResult = await client.query(
+                `UPDATE morph_sessions SET name = LEFT($2, 45), updated_at = NOW()
+                 WHERE id = $1 AND name = 'New Chat' RETURNING name`,
+                [sessionId, message]
+              );
+              if (nameResult.rows.length > 0) {
+                sessionName = nameResult.rows[0].name;
+              } else {
+                await client.query(`UPDATE morph_sessions SET updated_at = NOW() WHERE id = $1`, [sessionId]);
+              }
+            });
+
+            return reply.send({
+              sql,
+              message: `Ready to insert into \`${stripPrefix(insertTableName, prefix)}\`. Review the form below.`,
+              schema: insertSchema,
+              action: 'prefill',
+              alreadyExisted: false,
+              values: extractedValues,
+              ...(sessionName ? { sessionName } : {}),
+            } satisfies ChatResponse);
+          }
+        }
+      }
 
       if (action === 'select') {
         sql = makeSelectCaseInsensitive(sql);
