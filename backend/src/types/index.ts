@@ -14,11 +14,17 @@ export interface ChatRequest {
   sessionId: number;
 }
 
+export interface Relation {
+  from: string; // table that has the FK (actual DB name)
+  to: string;   // table being referenced (actual DB name)
+  on: string;   // FK column name
+}
+
 export interface ChatResponse {
   sql: string;
   message: string;
   schema: TableSchema | null;
-  action: 'create' | 'alter' | 'insert' | 'select' | 'unknown' | 'prefill' | 'query';
+  action: 'create' | 'alter' | 'insert' | 'select' | 'unknown' | 'prefill' | 'query' | 'create_many';
   alreadyExisted?: boolean;
   sessionName?: string;
   suggestion?: string;
@@ -26,6 +32,8 @@ export interface ChatResponse {
   rows?: Record<string, unknown>[];
   columns?: string[];
   chartType?: 'bar' | 'stat' | 'table';
+  schemas?: TableSchema[];
+  relations?: Relation[];
 }
 
 export interface Session {
@@ -38,6 +46,7 @@ export interface Session {
 export interface SessionDetail extends Session {
   messages: Array<{ id: number; role: 'user' | 'system'; text: string; warning: boolean }>;
   sessionTables: Array<{ table_name: string; pos_x: number; pos_y: number }>;
+  relations: Relation[];
 }
 
 export interface ApiError {

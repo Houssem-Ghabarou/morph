@@ -1,9 +1,83 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { generateSQL, generateSuggestion } from '../lib/claude';
+import { generateSQL, generateSuggestion, interpretQueryResult } from '../lib/claude';
 import { query, getTableSchema, runInTransaction } from '../lib/postgres';
-import { ChatRequest, ChatResponse, TableSchema } from '../types';
+import { ChatRequest, ChatResponse, TableSchema, Relation } from '../types';
 
 const PG_DUPLICATE_TABLE = '42P07';
+
+function sessionPrefix(sessionId: number): string {
+  return `s${sessionId}_`;
+}
+
+function stripPrefix(name: string, prefix: string): string {
+  return name.startsWith(prefix) ? name.slice(prefix.length) : name;
+}
+
+/**
+ * Rewrites SQL table names for session isolation.
+ * - CREATE TABLE wood_inventory → CREATE TABLE s3_wood_inventory (and adds to tableMap)
+ * - INSERT/ALTER/SELECT → replaces known display names with their actual DB names
+ * - PREFILL|tableName|... → replaces tableName with actual DB name
+ */
+/**
+ * Fix common LLM SQL mistakes before execution:
+ * - Table/column names with spaces → snake_case
+ * - Stray backtick quoting (MySQL style) → remove
+ */
+function sanitizeSQL(sql: string): string {
+  // Replace backtick quoting with plain identifiers
+  sql = sql.replace(/`(\w+)`/g, '$1');
+  // Fix "CREATE TABLE foo bar (...)" → "CREATE TABLE foo_bar (...)"
+  sql = sql.replace(
+    /(CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?)([a-z][a-z0-9]*(?:\s+[a-z][a-z0-9]*)+)(\s*\()/gi,
+    (_m, prefix, name, paren) => prefix + name.trim().replace(/\s+/g, '_') + paren
+  );
+  return sql;
+}
+
+/** Convert = 'value' → ILIKE 'value' in SELECT queries so name lookups are case-insensitive. */
+function makeSelectCaseInsensitive(sql: string): string {
+  // Only apply to SELECT statements
+  if (!sql.trimStart().toUpperCase().startsWith('SELECT')) return sql;
+  // Replace col = 'value' with col ILIKE 'value' (not col != or col >= etc.)
+  return sql.replace(/(?<![!<>])=\s*'([^']*)'/g, "ILIKE '$1'");
+}
+
+function rewriteSQLForSession(
+  sql: string,
+  tableMap: Map<string, string>,
+  prefix: string
+): string {
+  if (sql.startsWith('PREFILL|')) {
+    const parts = sql.split('|');
+    const display = parts[1];
+    const actual = tableMap.get(display) ?? (prefix + display);
+    return `PREFILL|${actual}|${parts.slice(2).join('|')}`;
+  }
+
+  const createMatch = sql.match(/CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?"?(\w+)"?/i);
+  if (createMatch) {
+    const raw = createMatch[1];
+    let result = sql;
+    // Replace already-known display names in the body (e.g. REFERENCES suppliers → REFERENCES s3_suppliers)
+    for (const [display, actual] of tableMap.entries()) {
+      result = result.replace(new RegExp(`\\b${display}\\b`, 'g'), actual);
+    }
+    // Prefix the new table name itself
+    if (!raw.startsWith(prefix)) {
+      const actual = prefix + raw;
+      tableMap.set(raw, actual);
+      result = result.replace(new RegExp(`\\b${raw}\\b`, 'g'), actual);
+    }
+    return result;
+  }
+
+  let result = sql;
+  for (const [display, actual] of tableMap.entries()) {
+    result = result.replace(new RegExp(`\\b${display}\\b`, 'g'), actual);
+  }
+  return result;
+}
 
 function detectChartType(sql: string, rows: Record<string, unknown>[]): 'bar' | 'stat' | 'table' {
   const upper = sql.toUpperCase();
@@ -47,9 +121,10 @@ function extractTableName(sql: string): string | null {
 function buildMessage(
   action: ChatResponse['action'],
   schema: TableSchema | null,
-  alreadyExisted: boolean
+  alreadyExisted: boolean,
+  prefix: string = ''
 ): string {
-  const name = schema?.tableName ?? 'table';
+  const name = stripPrefix(schema?.tableName ?? 'table', prefix);
   const cols = schema?.columns
     .filter((c) => c.name !== 'id' && c.name !== 'created_at')
     .map((c) => c.name) ?? [];
@@ -69,6 +144,30 @@ function buildMessage(
   return 'Done.';
 }
 
+/** Derive relations by matching text column names against known session table names. */
+function deriveRelations(schemas: TableSchema[], prefix: string): Relation[] {
+  const relations: Relation[] = [];
+  const tableNames = schemas.map((s) => s.tableName);
+
+  for (const schema of schemas) {
+    for (const col of schema.columns) {
+      if (['id', 'created_at', 'updated_at'].includes(col.name)) continue;
+      if (col.type !== 'text' && !col.type.includes('char')) continue;
+
+      const colNorm = col.name.toLowerCase();
+      for (const other of tableNames) {
+        if (other === schema.tableName) continue;
+        const otherBase = other.replace(new RegExp(`^${prefix.replace(/\d/, '\\d')}`), '').toLowerCase();
+        if (colNorm === otherBase || colNorm + 's' === otherBase || colNorm === otherBase + 's') {
+          relations.push({ from: schema.tableName, to: other, on: col.name });
+          break;
+        }
+      }
+    }
+  }
+  return relations;
+}
+
 export default async function chatRoutes(fastify: FastifyInstance) {
   fastify.post<{ Body: ChatRequest }>(
     '/api/chat',
@@ -83,6 +182,9 @@ export default async function chatRoutes(fastify: FastifyInstance) {
       }
 
       // Build session context so the LLM knows which tables exist and their schemas
+      const prefix = sessionPrefix(sessionId);
+      // display_name -> actual_db_name (actual names are prefixed with session prefix)
+      const tableMap = new Map<string, string>();
       let sessionContext = '';
       try {
         const sessionTables = await query(
@@ -90,17 +192,59 @@ export default async function chatRoutes(fastify: FastifyInstance) {
           [sessionId]
         );
         if (sessionTables.rows.length > 0) {
+          const allSchemas: TableSchema[] = [];
+
           const schemaLines = await Promise.all(
             sessionTables.rows.map(async (row: { table_name: string }) => {
-              const cols = await getTableSchema(row.table_name);
+              const actual = row.table_name;
+              const display = stripPrefix(actual, prefix);
+              tableMap.set(display, actual);
+              const cols = await getTableSchema(actual);
+
+              allSchemas.push({
+                tableName: actual,
+                columns: cols.map((c) => ({ name: c.column_name, type: c.data_type, nullable: c.is_nullable === 'YES' })),
+              });
+
               const colDefs = cols
                 .filter((c) => c.column_name !== 'id' && c.column_name !== 'created_at')
                 .map((c) => `${c.column_name} (${c.data_type})`)
                 .join(', ');
-              return `- ${row.table_name}: ${colDefs}`;
+
+              // Fetch a sample row so the LLM understands what data is stored
+              let sampleLine = '';
+              try {
+                const sample = await query(
+                  `SELECT * FROM "${actual}" ORDER BY id DESC LIMIT 1`
+                );
+                if (sample.rows.length > 0) {
+                  const sRow = sample.rows[0];
+                  const preview = Object.fromEntries(
+                    Object.entries(sRow).filter(([k]) => k !== 'id' && k !== 'created_at')
+                  );
+                  sampleLine = `\n  sample: ${JSON.stringify(preview)}`;
+                }
+              } catch {
+                // Sample is best-effort
+              }
+
+              return `- ${display}: ${colDefs}${sampleLine}`;
             })
           );
-          sessionContext = `Tables already in this session:\n${schemaLines.join('\n')}`;
+
+          // Derive and include existing relations so LLM knows how tables are linked
+          const existingRelations = deriveRelations(allSchemas, prefix);
+          let relSection = '';
+          if (existingRelations.length > 0) {
+            const relLines = existingRelations.map((r) => {
+              const fromDisplay = stripPrefix(r.from, prefix);
+              const toDisplay = stripPrefix(r.to, prefix);
+              return `- ${fromDisplay}.${r.on} → ${toDisplay}`;
+            });
+            relSection = `\n\nExisting relations:\n${relLines.join('\n')}`;
+          }
+
+          sessionContext = `Tables already in this session:\n${schemaLines.join('\n')}${relSection}`;
         }
       } catch {
         // Context is best-effort — don't block the request
@@ -113,6 +257,90 @@ export default async function chatRoutes(fastify: FastifyInstance) {
         fastify.log.error(err);
         return reply.status(502).send({ error: 'Could not reach the LLM. Check your API key.' });
       }
+
+      // Sanitize common LLM SQL mistakes
+      sql = sanitizeSQL(sql);
+
+      // Detect multi-table response (statements separated by ---)
+      const rawStatements = sql.split(/^\s*---\s*$/m).map((s) => s.trim()).filter(Boolean);
+
+      if (rawStatements.length > 1) {
+        // Rewrite each statement in order (tableMap accumulates across statements)
+        const statements = rawStatements.map((s) => rewriteSQLForSession(s, tableMap, prefix));
+
+        const schemas: TableSchema[] = [];
+        const relations: Relation[] = [];
+
+        for (const stmt of statements) {
+          if (!detectAction(stmt).startsWith('create') && detectAction(stmt) !== 'create') continue;
+          try {
+            await query(stmt);
+          } catch (err: unknown) {
+            const pgErr = err as { code?: string };
+            if (pgErr.code !== PG_DUPLICATE_TABLE) {
+              fastify.log.error(err); // skip bad statement, continue with others
+              continue;
+            }
+          }
+          const tName = extractTableName(stmt);
+          if (tName) {
+            const cols = await getTableSchema(tName);
+            schemas.push({
+              tableName: tName,
+              columns: cols.map((c) => ({ name: c.column_name, type: c.data_type, nullable: c.is_nullable === 'YES' })),
+            });
+          }
+        }
+
+        // Derive relations from column name ↔ table name matching (no FK constraints needed)
+        relations.push(...deriveRelations(schemas, prefix));
+
+        const tableNames = schemas.map((s) => s.tableName);
+        const displayNames = tableNames.map((n) => stripPrefix(n, prefix));
+        const responseMessage = `Created ${schemas.length} linked tables: ${displayNames.map((n) => `\`${n}\``).join(', ')}.`;
+
+        let sessionName: string | undefined;
+        await runInTransaction(async (client) => {
+          await client.query(
+            `INSERT INTO morph_messages (session_id, role, text) VALUES ($1, 'user', $2)`,
+            [sessionId, message]
+          );
+          await client.query(
+            `INSERT INTO morph_messages (session_id, role, text) VALUES ($1, 'system', $2)`,
+            [sessionId, responseMessage]
+          );
+          for (const tName of tableNames) {
+            await client.query(
+              `INSERT INTO morph_session_tables (session_id, table_name)
+               VALUES ($1, $2) ON CONFLICT (session_id, table_name) DO NOTHING`,
+              [sessionId, tName]
+            );
+          }
+          const nameResult = await client.query(
+            `UPDATE morph_sessions SET name = LEFT($2, 45), updated_at = NOW()
+             WHERE id = $1 AND name = 'New Chat' RETURNING name`,
+            [sessionId, message]
+          );
+          if (nameResult.rows.length > 0) {
+            sessionName = nameResult.rows[0].name;
+          } else {
+            await client.query(`UPDATE morph_sessions SET updated_at = NOW() WHERE id = $1`, [sessionId]);
+          }
+        });
+
+        return reply.send({
+          sql: statements.join('\n---\n'),
+          message: responseMessage,
+          schema: null,
+          action: 'create_many',
+          schemas,
+          relations,
+          ...(sessionName ? { sessionName } : {}),
+        } satisfies ChatResponse);
+      }
+
+      // Single-statement path: rewrite table names
+      sql = rewriteSQLForSession(sql, tableMap, prefix);
 
       // Handle PREFILL response from LLM
       if (sql.startsWith('PREFILL|')) {
@@ -167,7 +395,7 @@ export default async function chatRoutes(fastify: FastifyInstance) {
 
         const prefillResponse: ChatResponse = {
           sql,
-          message: `Ready to insert into \`${prefillTableName}\`. Review the form below.`,
+          message: `Ready to insert into \`${stripPrefix(prefillTableName, prefix)}\`. Review the form below.`,
           schema: prefillSchema,
           action: 'prefill',
           alreadyExisted: false,
@@ -180,18 +408,48 @@ export default async function chatRoutes(fastify: FastifyInstance) {
       const action = detectAction(sql);
 
       if (action === 'select') {
+        sql = makeSelectCaseInsensitive(sql);
         let rows: Record<string, unknown>[] = [];
         try {
           const result = await query(sql);
           rows = result.rows;
         } catch (err) {
           fastify.log.error(err);
-          return reply.status(500).send({ error: 'Query execution failed', details: String(err) });
+          const errMsg = 'I couldn\'t run that query. Try rephrasing — e.g. "show me all meals" or "total calories by client".';
+          await runInTransaction(async (client) => {
+            await client.query(`INSERT INTO morph_messages (session_id, role, text) VALUES ($1, 'user', $2)`, [sessionId, message]);
+            await client.query(`INSERT INTO morph_messages (session_id, role, text) VALUES ($1, 'system', $2)`, [sessionId, errMsg]);
+            await client.query(`UPDATE morph_sessions SET updated_at = NOW() WHERE id = $1`, [sessionId]);
+          });
+          return reply.send({ sql, message: errMsg, schema: null, action: 'unknown' } satisfies ChatResponse);
         }
 
         const columns = rows.length > 0 ? Object.keys(rows[0]) : [];
         const chartType = detectChartType(sql, rows);
-        const queryMessage = buildQueryMessage(chartType, rows, message);
+
+        // Fetch all session table data for accurate interpretation
+        let fullSessionData: string | undefined;
+        try {
+          const tableEntries = await Promise.all(
+            Array.from(tableMap.entries()).map(async ([display, actual]) => {
+              const res = await query(`SELECT * FROM "${actual}" ORDER BY id ASC LIMIT 100`);
+              if (res.rows.length === 0) return null;
+              const cleaned = res.rows.map((r) => {
+                const { id: _id, created_at: _ca, ...rest } = r as Record<string, unknown> & { id: unknown; created_at: unknown };
+                return rest;
+              });
+              return `=== ${display} ===\n${cleaned.map((r) => JSON.stringify(r)).join('\n')}`;
+            })
+          );
+          const entries = tableEntries.filter(Boolean);
+          if (entries.length > 0) fullSessionData = entries.join('\n\n');
+        } catch {
+          // Best-effort — don't block
+        }
+
+        // Get a natural-language interpretation of the results
+        const interpretation = await interpretQueryResult(message, rows, sessionContext, fullSessionData);
+        const queryMessage = interpretation || buildQueryMessage(chartType, rows, message);
 
         await runInTransaction(async (client) => {
           await client.query(
@@ -230,7 +488,13 @@ export default async function chatRoutes(fastify: FastifyInstance) {
           alreadyExisted = true;
         } else {
           fastify.log.error(err);
-          return reply.status(500).send({ error: 'SQL execution failed', details: String(err) });
+          const errMsg = 'I couldn\'t apply that change. Try rephrasing — e.g. "create a program_details table with program name, exercises, and duration".';
+          await runInTransaction(async (client) => {
+            await client.query(`INSERT INTO morph_messages (session_id, role, text) VALUES ($1, 'user', $2)`, [sessionId, message]);
+            await client.query(`INSERT INTO morph_messages (session_id, role, text) VALUES ($1, 'system', $2)`, [sessionId, errMsg]);
+            await client.query(`UPDATE morph_sessions SET updated_at = NOW() WHERE id = $1`, [sessionId]);
+          });
+          return reply.send({ sql, message: errMsg, schema: null, action: 'unknown' } satisfies ChatResponse);
         }
       }
 
@@ -247,7 +511,7 @@ export default async function chatRoutes(fastify: FastifyInstance) {
         };
       }
 
-      const responseMessage = buildMessage(action, schema, alreadyExisted);
+      const responseMessage = buildMessage(action, schema, alreadyExisted, prefix);
 
       // Generate insert suggestion for new tables (non-blocking on failure)
       let suggestion: string | undefined;
@@ -255,7 +519,7 @@ export default async function chatRoutes(fastify: FastifyInstance) {
         const userCols = schema.columns
           .filter((c) => c.name !== 'id' && c.name !== 'created_at')
           .map((c) => c.name);
-        suggestion = await generateSuggestion(message, schema.tableName, userCols);
+        suggestion = await generateSuggestion(message, stripPrefix(schema.tableName, prefix), userCols);
       }
 
       // Persist messages + register table + touch session — all in one transaction

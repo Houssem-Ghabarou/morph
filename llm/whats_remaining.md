@@ -1,29 +1,5 @@
 # Morph — What's Remaining
-> Updated: March 2026
-
----
-
-## Phase A — Multi-table Relational Creation
-*"I need inventory, suppliers and orders with proper relationships"*
-**→ 3 linked tables appear at once with FK arrows on canvas**
-
-### Backend
-- LLM returns multiple SQL statements separated by `---`
-- Backend splits, executes each in order
-- Detects `REFERENCES` clauses → extracts FK relationships
-- New response field: `relations: [{ from, to, on }]`
-- New action: `'create_many'`
-
-### Frontend
-- `Canvas.tsx`: render SVG lines between related TableCards
-- Cards spawn in a smart layout (related tables positioned near each other)
-- `ChatPanel`: handle `action: 'create_many'` → spawn all cards at once
-
-### Example prompts to enable
-```
-I run a furniture shop. I need inventory, suppliers, and orders with proper relationships.
-Create a school database: students, courses, and enrollments linked together.
-```
+> Updated: April 2026
 
 ---
 
@@ -87,26 +63,23 @@ products (status: available / out_of_stock / discontinued)
 
 ### Frontend → Vercel
 ```bash
-cd frontend && npx vercel --prod
+cd morphfront && npx vercel --prod
 # Set env: NEXT_PUBLIC_API_URL=https://your-backend.railway.app
 ```
 
 ### Backend → Railway
 ```bash
-# railway.toml already needed
 # Set env: DATABASE_URL, ANTHROPIC_API_KEY or GROQ_API_KEY, LLM_PROVIDER
 ```
 
 ### Things to fix before deploy
 - `CORS` in `backend/src/index.ts`: add Vercel production URL to allowed origins
-- `NEXT_PUBLIC_API_URL` in `frontend/lib/api.ts`: currently hardcoded to `localhost:3001`
+- `NEXT_PUBLIC_API_URL` in `morphfront/lib/api.ts`: currently hardcoded to `localhost:3001`
 - Add `railway.toml` or `Procfile` for backend start command
 
 ---
 
-## Nice-to-haves (Report / Future Work section)
-
-These are worth mentioning in the report as future directions but NOT building for the POC:
+## Nice-to-haves (Future Work)
 
 | Feature | Why cut |
 |---|---|
@@ -123,8 +96,7 @@ These are worth mentioning in the report as future directions but NOT building f
 
 | # | Phase | Impact | Effort | Status |
 |---|---|---|---|---|
-| 1 | **A — Multi-table creation** | Very high | High | Not started |
-| 2 | **D — Inline edit + row delete** | High | Medium | Not started |
-| 3 | **G — Deployment** | High (demo day) | Low | Not started |
-| 4 | **E — Kanban view** | Medium | High | Not started |
-| 5 | **F — Proactive insights** | Medium | Medium | Not started |
+| 1 | **D — Inline edit + row delete** | High | Medium | Not started |
+| 2 | **G — Deployment** | High (demo day) | Low | Not started |
+| 3 | **E — Kanban view** | Medium | High | Not started |
+| 4 | **F — Proactive insights** | Medium | Medium | Not started |

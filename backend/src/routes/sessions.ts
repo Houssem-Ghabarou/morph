@@ -1,5 +1,45 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { query, runInTransaction } from '../lib/postgres';
+import { Relation } from '../types';
+
+async function getRelationsForTables(tableNames: string[]): Promise<Relation[]> {
+  if (tableNames.length === 0) return [];
+
+  // Fetch all text columns for every session table
+  const result = await query(
+    `SELECT table_name, column_name
+     FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = ANY($1)
+       AND data_type IN ('text', 'character varying', 'varchar')`,
+    [tableNames]
+  );
+
+  const relations: Relation[] = [];
+
+  for (const row of result.rows) {
+    const col: string  = row.column_name;
+    const tbl: string  = row.table_name;
+
+    // Skip system columns
+    if (col === 'id' || col === 'created_at' || col === 'updated_at') continue;
+
+    // Check if this column name matches another session table (with/without trailing 's')
+    for (const other of tableNames) {
+      if (other === tbl) continue;
+      // Strip the session prefix (s3_) from both for comparison
+      const colNorm   = col.toLowerCase();
+      const otherBase = other.replace(/^s\d+_/, '').toLowerCase();
+
+      if (colNorm === otherBase || colNorm + 's' === otherBase || colNorm === otherBase + 's') {
+        relations.push({ from: tbl, to: other, on: col });
+        break;
+      }
+    }
+  }
+
+  return relations;
+}
 
 export default async function sessionRoutes(fastify: FastifyInstance) {
   // List all sessions
@@ -44,10 +84,14 @@ export default async function sessionRoutes(fastify: FastifyInstance) {
         return reply.status(404).send({ error: 'Session not found' });
       }
 
+      const tableNames = tablesRes.rows.map((r: { table_name: string }) => r.table_name);
+      const relations = await getRelationsForTables(tableNames);
+
       return reply.send({
         ...sessionRes.rows[0],
         messages: messagesRes.rows,
         sessionTables: tablesRes.rows,
+        relations,
       });
     }
   );
@@ -75,6 +119,21 @@ export default async function sessionRoutes(fastify: FastifyInstance) {
       });
 
       return reply.send({ ok: true });
+    }
+  );
+
+  // Get FK relations for all tables in a session
+  fastify.get<{ Params: { id: string } }>(
+    '/api/sessions/:id/relations',
+    async (req: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+      const sessionId = Number(req.params.id);
+      const tablesRes = await query(
+        `SELECT table_name FROM morph_session_tables WHERE session_id = $1`,
+        [sessionId]
+      );
+      const tableNames = tablesRes.rows.map((r: { table_name: string }) => r.table_name);
+      const relations = await getRelationsForTables(tableNames);
+      return reply.send({ relations });
     }
   );
 
