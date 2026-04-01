@@ -1,0 +1,40 @@
+A. Furniture Workshop — Inventory Tracking
+Furniture Workshop
+User: "I run a bespoke furniture shop. I need to track wood inventory."
+Morph: Done. I’ve created an Inventory table: Wood Type, Dimensions, Quantity, Vendor.
+■ Canvas: A sortable data table with 4 columns appears.
+User: "Add columns for Drying Time and Moisture Content."
+Morph: Added. Drying Time (days) and Moisture Content (%) are now in the table.
+User: "Log a shipment: 200 White Oak boards from Atlas Lumber."
+■ Canvas: A pre-filled form slides in. User confirms → row appears in the table.
+B. Freelance Nutritionist — Calorie & Meal Tracking
+Nutritionist Client Manager
+User: "I’m a nutritionist. I need to track clients and their daily calorie intake."
+Morph: Created: Clients (Name, Age, Goal, Allergies) + Meal Log (Date, Meal, Calories, Protein, Carbs, Fat).
+■ Canvas: Two linked tables appear. Clicking a client shows their meal history.
+User: "Add a daily calorie summary chart for each client."
+■ Canvas: A bar chart widget showing daily calories vs. target appears under each client’s profile.
+C. University Student — Academic Dashboard
+Student Productivity Hub
+User: "I’m a CS student. I want to organize my semester and track grades."
+Morph: Created: Courses (Name, Professor, Schedule, Credits) + Tasks (Task, Deadline, Priority, Status) + Grades
+table with auto-GPA formula.
+■ Canvas: A course grid, a task kanban board, and a GPA card all appear on the canvas.
+User: "Now add a monthly expense tracker."
+■ Canvas: An Expenses table (Date, Category, Amount) and a pie chart of spending by category appear alongside the
+academic modules.
+D. Photography Studio — Bookings & Revenue
+Photography Business Manager
+User: "I run a photo studio. I need bookings and equipment tracking."
+Morph: Created: Bookings (Client, Date, Session Type, Price) + Equipment (Item, Condition, Last Serviced).
+■ Canvas: A calendar view for bookings and an equipment inventory grid appear.
+User: "Show me monthly revenue and most popular session types."
+■ Canvas: A revenue bar chart and a session-type breakdown pie chart appear as dashboard cards.
+E. Personal Use — Habit & Fitness Tracker
+Personal Life Dashboard
+User: "I want to track my daily habits: sleep, water intake, workouts, and reading."
+Morph: Created: Daily Log (Date, Sleep Hours, Water (L), Workout Type, Duration, Pages Read) with a weekly streak
+counter.
+■ Canvas: A daily input form and a weekly trends line chart appear.
+User: "Add a weight tracker with a progress graph."
+■ Canvas: A Weight Log table and an interactive line chart showing weight over time appear below the habit tracker

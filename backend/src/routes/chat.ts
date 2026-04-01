@@ -415,7 +415,7 @@ export default async function chatRoutes(fastify: FastifyInstance) {
           rows = result.rows;
         } catch (err) {
           fastify.log.error(err);
-          const errMsg = 'I couldn\'t run that query. Try rephrasing — e.g. "show me all meals" or "total calories by client".';
+          const errMsg = 'I couldn\'t run that query. Try rephrasing — for example, "show me all [table]" or "total [column] by [group]".';
           await runInTransaction(async (client) => {
             await client.query(`INSERT INTO morph_messages (session_id, role, text) VALUES ($1, 'user', $2)`, [sessionId, message]);
             await client.query(`INSERT INTO morph_messages (session_id, role, text) VALUES ($1, 'system', $2)`, [sessionId, errMsg]);
@@ -488,7 +488,7 @@ export default async function chatRoutes(fastify: FastifyInstance) {
           alreadyExisted = true;
         } else {
           fastify.log.error(err);
-          const errMsg = 'I couldn\'t apply that change. Try rephrasing — e.g. "create a program_details table with program name, exercises, and duration".';
+          const errMsg = 'I couldn\'t apply that change. Try rephrasing with more detail — be explicit about what you want to create or modify and what columns it should have.';
           await runInTransaction(async (client) => {
             await client.query(`INSERT INTO morph_messages (session_id, role, text) VALUES ($1, 'user', $2)`, [sessionId, message]);
             await client.query(`INSERT INTO morph_messages (session_id, role, text) VALUES ($1, 'system', $2)`, [sessionId, errMsg]);
