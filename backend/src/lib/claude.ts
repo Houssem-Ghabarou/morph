@@ -13,59 +13,95 @@ Rules:
 - If the intent is ambiguous and no tables exist yet, default to CREATE TABLE.
 - Never invent table names. If asked to add/insert data and session tables exist, always INSERT into an existing table.
 
-COLUMN EXTRACTION (critical — follow precisely):
-- Extract columns DIRECTLY from what the user describes. Do NOT invent columns the user did not mention.
-- If the user says "track clients, their meals with calories, and training programs with exercises":
-  - clients should have columns the user implies: name (text), age (integer), weight (numeric), goal (text) — based on the domain context
-  - meals should have: client (text), food (text), calories (integer) — because the user said "with calories"
-  - training_programs should have: client (text), program (text), sessions_per_week (integer), duration_weeks (integer)
-- Choose appropriate PostgreSQL types: TEXT for names/descriptions, INTEGER for counts/whole numbers, NUMERIC for measurements (weight, height, price), DATE for dates, BOOLEAN for yes/no.
-- For a gym/fitness domain: always include age (integer), weight (numeric), goal (text) on a clients table.
-- For a food/meal domain: always include calories (integer) on meals.
-- NEVER add generic columns like "email" unless the user specifically mentions email.
+COLUMN EXTRACTION (critical — revised):
+- Extract columns DIRECTLY from what the user describes.
+- Do NOT invent unrelated or unnecessary columns.
+- You MAY infer columns ONLY when:
+  - The context strongly implies them
+  - They are essential to represent the data
 
-LINKING RULE (always apply):
-- Never use integer foreign keys or REFERENCES constraints. They cause errors.
-- To link a table to another, add a plain TEXT column named after the related table (singular form, no _id suffix).
-- Example: meals should have "client TEXT" not "client_id INT REFERENCES clients(id)".
-- For compound table names use the singular form: workout_sessions linking to training_programs → add "training_program TEXT".
-- If "clients" already exists in the session and you create "training_programs", add: client TEXT
-- Always check existing session tables and add a link column if the new table logically belongs to one.
+Examples:
+- "track clients with name and age" → name, age
+- "track meals with calories" → food, calories
+
+- Prefer fewer columns over guessing.
+- NEVER add generic columns like "email" unless explicitly mentioned.
+
+DATA TYPES:
+- TEXT for names/descriptions
+- INTEGER for counts/whole numbers
+- NUMERIC for measurements (weight, height, price)
+- DATE for dates
+- BOOLEAN for yes/no
+
+LINKING RULE (mandatory — no exceptions):
+
+- If multiple tables are created in the same request, you MUST create logical relationships between them.
+
+- If one entity clearly belongs to another (e.g., meals belong to clients, orders belong to users):
+  → Add a TEXT column in the child table referencing the parent.
+
+- Column naming:
+  - Use singular form of the parent table name
+  - Example:
+    clients → meals must include: client TEXT
+    users → orders must include: user TEXT
+
+- This rule is NOT optional:
+  - NEVER create related tables without linking them
+  - If a relationship can reasonably exist, you MUST include it
+
+- If unsure:
+  → Assume the first/main entity is the parent and link others to it
+
+- For multiple relationships:
+  → Add multiple TEXT link columns if needed
+
+Examples:
+- clients + meals → meals.client TEXT
+- clients + training_programs → training_programs.client TEXT
+- products + orders → orders.product TEXT
 
 MULTI-TABLE RULE:
-When the user asks to track/manage multiple new concepts at once:
-- Output ALL CREATE TABLE statements separated by a line containing exactly: ---
+- If multiple entities are requested:
+  - Output ALL CREATE TABLE statements separated by:
+    ---
 - Existing session tables are already created — do NOT re-create them.
-- For a single new table request, output exactly one CREATE TABLE statement.
-- Only create tables for distinct entity types the user explicitly mentions. Do NOT create extra tables the user did not ask for.
+- Only create tables for entities explicitly mentioned.
 
-INTENT CLASSIFICATION — apply this before anything else:
-1. CREATE intent: user describes a new type of thing to manage/track/store (even if tables exist). Signals: "I want to track X", "add a X table", "I need to manage X", "track X for my clients", "store X". → CREATE TABLE (or multi-table if multiple entities).
-2. INSERT intent: user is adding a specific concrete record with actual values. Signals: mentions real names/numbers/dates like "add John, 85kg", "log pasta 300 calories for Houssem", "new client: Ahmed". → PREFILL (if tables exist) or INSERT SQL.
-3. QUERY intent: user asks a question about existing data. Signals: "how many", "show me", "total", "which", "is X doing Y". → SELECT.
+INTENT CLASSIFICATION:
+1. CREATE intent → user describes a new entity/type
+2. INSERT intent → user provides real values
+3. QUERY intent → user asks about data
 
-When unsure between CREATE and INSERT: if the user mentions a concept/entity type without specific record values → CREATE TABLE.
+When unsure between CREATE and INSERT:
+- If no concrete values → CREATE TABLE
 
 PREFILL RULE (only for INSERT intent):
-When intent is INSERT and session tables already exist:
-- Do NOT generate INSERT SQL.
-- Output exactly: PREFILL|<table_name>|<json>
-- <table_name> must be one of the existing session tables (use display names shown in session context, not prefixed names).
-- <json> must contain ALL non-system columns (exclude id and created_at) as keys.
-- Extract EVERY value from the user's message. Map each value to the correct column by meaning, not position.
-  - "Ahmed, 30 years old, 78kg, goal is muscle gain" → {"name":"Ahmed","age":30,"weight":78,"goal":"muscle gain"}
-  - "Log lunch for houssem: grilled chicken with rice, 650 calories" → {"client":"houssem","food":"grilled chicken with rice","calories":650}
-- Use "" for columns where the user provided no value. Use actual numbers (not strings) for numeric columns.
-- If no tables exist yet, use INSERT SQL as normal.
+- Output exactly:
+  PREFILL|<table_name>|<json>
+
+- Rules:
+  - Use an existing table
+  - Include ALL non-system columns (exclude id, created_at)
+  - Map values by meaning, not position
+  - Missing values → ""
+
+Examples:
+- "Ahmed, 30 years old, 78kg" → {"name":"Ahmed","age":30,"weight":78}
+- "Log lunch for houssem: grilled chicken with rice, 650 calories" → {"client":"houssem","food":"grilled chicken with rice","calories":650}
 
 SELECT RULES:
-- For analytical/question intent: output a SELECT query.
-- May use JOINs, GROUP BY, ORDER BY, LIMIT, aggregate functions (SUM, COUNT, AVG, MAX, MIN).
-- Always alias aggregates: SELECT wood_type, SUM(quantity) AS total_quantity FROM ...
-- For single-value results, use one aggregate with a clear alias.
-- Always use ILIKE instead of = for text/name filters (case-insensitive). Example: WHERE name ILIKE 'houssem'.
-- For cross-table questions, use JOINs: JOIN on the link column matching the linked table's name column. Example: JOIN clients ON meals.client ILIKE clients.name
-- For comparison queries ("compare X and Y"), return rows for ALL compared entities, not just one.`;
+- Use SELECT for queries
+- Allowed: JOIN, GROUP BY, ORDER BY, LIMIT, aggregates
+- Always alias aggregates: SUM(x) AS total_x
+- Always use ILIKE for text filters (case-insensitive)
+- For joins:
+  JOIN using TEXT link columns
+  Example:
+    JOIN clients ON meals.client ILIKE clients.name
+- For comparisons:
+  Return rows for ALL compared entities`;
 
 type Provider = 'groq' | 'claude';
 
