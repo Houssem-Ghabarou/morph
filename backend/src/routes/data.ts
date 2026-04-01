@@ -1,5 +1,21 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { query } from '../lib/postgres';
+import { query, runInTransaction } from '../lib/postgres';
+
+interface SchemaChange {
+  action: 'add' | 'rename' | 'retype';
+  column: string;
+  newName?: string;
+  newType?: string;
+}
+
+const ALLOWED_TYPES = new Set([
+  'text', 'integer', 'numeric', 'boolean', 'date', 'timestamp',
+  'bigint', 'smallint', 'real', 'double precision', 'varchar',
+]);
+
+function sanitizeIdentifier(name: string): string {
+  return name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+}
 
 async function tableExists(tableName: string): Promise<boolean> {
   const result = await query(
@@ -11,7 +27,6 @@ async function tableExists(tableName: string): Promise<boolean> {
 }
 
 export default async function dataRoutes(fastify: FastifyInstance) {
-  // Get all rows from a table
   fastify.get<{ Params: { tableName: string } }>(
     '/api/data/:tableName',
     async (request: FastifyRequest<{ Params: { tableName: string } }>, reply: FastifyReply) => {
@@ -24,7 +39,6 @@ export default async function dataRoutes(fastify: FastifyInstance) {
     }
   );
 
-  // Insert a row into a table
   fastify.post<{ Params: { tableName: string }; Body: Record<string, unknown> }>(
     '/api/data/:tableName',
     async (
@@ -47,6 +61,74 @@ export default async function dataRoutes(fastify: FastifyInstance) {
 
       const result = await query(sql, values);
       return reply.status(201).send({ row: result.rows[0] });
+    }
+  );
+
+  // ALTER schema + INSERT in one transaction
+  fastify.patch<{
+    Params: { tableName: string };
+    Body: { changes: SchemaChange[]; row: Record<string, unknown> };
+  }>(
+    '/api/data/:tableName/schema',
+    async (
+      request: FastifyRequest<{
+        Params: { tableName: string };
+        Body: { changes: SchemaChange[]; row: Record<string, unknown> };
+      }>,
+      reply: FastifyReply
+    ) => {
+      const { tableName } = request.params;
+      if (!(await tableExists(tableName))) {
+        return reply.status(404).send({ error: `Table "${tableName}" not found` });
+      }
+
+      const { changes, row } = request.body;
+
+      try {
+        const result = await runInTransaction(async (client) => {
+          for (const change of changes) {
+            const col = sanitizeIdentifier(change.column);
+            if (!col) continue;
+
+            if (change.action === 'add' && change.newType) {
+              const t = change.newType.toLowerCase();
+              if (!ALLOWED_TYPES.has(t)) continue;
+              await client.query(`ALTER TABLE "${tableName}" ADD COLUMN IF NOT EXISTS "${col}" ${t}`);
+            }
+
+            if (change.action === 'rename' && change.newName) {
+              const newCol = sanitizeIdentifier(change.newName);
+              if (!newCol || newCol === col) continue;
+              await client.query(`ALTER TABLE "${tableName}" RENAME COLUMN "${col}" TO "${newCol}"`);
+            }
+
+            if (change.action === 'retype' && change.newType) {
+              const t = change.newType.toLowerCase();
+              if (!ALLOWED_TYPES.has(t)) continue;
+              await client.query(
+                `ALTER TABLE "${tableName}" ALTER COLUMN "${col}" TYPE ${t} USING "${col}"::${t}`
+              );
+            }
+          }
+
+          const columns = Object.keys(row).filter((k) => k !== 'id' && k !== 'created_at');
+          if (columns.length === 0) return null;
+
+          const values = columns.map((k) => row[k]);
+          const placeholders = columns.map((_, i) => `$${i + 1}`);
+          const insertSql = `INSERT INTO "${tableName}" (${columns.map((c) => `"${c}"`).join(', ')})
+                             VALUES (${placeholders.join(', ')})
+                             RETURNING *`;
+          const insertResult = await client.query(insertSql, values);
+          return insertResult.rows[0];
+        });
+
+        return reply.status(201).send({ row: result, ok: true });
+      } catch (err) {
+        fastify.log.error(err);
+        const msg = err instanceof Error ? err.message : 'Schema modification failed';
+        return reply.status(400).send({ error: msg });
+      }
     }
   );
 }
