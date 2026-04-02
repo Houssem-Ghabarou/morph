@@ -5,6 +5,20 @@ import { ChatRequest, ChatResponse, TableSchema, Relation } from '../types';
 
 const PG_DUPLICATE_TABLE = '42P07';
 
+const PG_RESERVED = new Set([
+  'all', 'analyse', 'analyze', 'and', 'any', 'array', 'as', 'asc',
+  'between', 'by', 'case', 'cast', 'check', 'collate', 'column',
+  'constraint', 'create', 'cross', 'default', 'desc', 'distinct', 'do',
+  'else', 'end', 'except', 'exists', 'false', 'fetch', 'for', 'foreign',
+  'from', 'full', 'grant', 'group', 'having', 'in', 'inner', 'insert',
+  'intersect', 'into', 'is', 'join', 'key', 'lateral', 'left', 'like',
+  'limit', 'natural', 'not', 'null', 'offset', 'on', 'only', 'or',
+  'order', 'outer', 'primary', 'references', 'returning', 'right',
+  'select', 'set', 'some', 'table', 'then', 'to', 'true', 'union',
+  'unique', 'update', 'user', 'using', 'values', 'when', 'where',
+  'window', 'with',
+]);
+
 function sessionPrefix(sessionId: number): string {
   return `s${sessionId}_`;
 }
@@ -32,9 +46,41 @@ function sanitizeSQL(sql: string): string {
   );
   // Strip markdown code fences that LLMs sometimes emit
   sql = sql.replace(/^```(?:sql)?\s*/i, '').replace(/\s*```\s*$/, '');
+  // Normalize semicolon-separated CREATE TABLE statements into --- separated
+  sql = sql.replace(/;\s*\n(\s*CREATE\s+TABLE)/gi, '\n---\n$1');
   // Remove leading/trailing whitespace and stray semicolons at the end
   sql = sql.trim().replace(/;\s*$/, '');
   return sql;
+}
+
+/**
+ * Safety net: double-quote column names that are SQL reserved words in CREATE TABLE.
+ * E.g. `order TEXT` → `"order" TEXT`
+ * Only processes CREATE TABLE statements. Columns already quoted are skipped.
+ */
+function quoteReservedColumnNames(sql: string): string {
+  if (!sql.trim().toUpperCase().startsWith('CREATE')) return sql;
+
+  const openParen = sql.indexOf('(');
+  const closeParen = sql.lastIndexOf(')');
+  if (openParen === -1 || closeParen === -1) return sql;
+
+  const before = sql.slice(0, openParen + 1);
+  const colBlock = sql.slice(openParen + 1, closeParen);
+  const after = sql.slice(closeParen);
+
+  const lines = colBlock.split(',');
+  const fixed = lines.map((line) => {
+    const m = line.match(/^(\s*)(\w+)(\s+(?:SERIAL|TEXT|INTEGER|NUMERIC|BOOLEAN|DATE|TIMESTAMP|BIGINT|SMALLINT|REAL|DOUBLE|VARCHAR|FLOAT|INT)\b)/i);
+    if (!m) return line;
+    const [, indent, colName, rest] = m;
+    if (PG_RESERVED.has(colName.toLowerCase())) {
+      return `${indent}"${colName}"${rest}`;
+    }
+    return line;
+  });
+
+  return before + fixed.join(',') + after;
 }
 
 /**
@@ -244,10 +290,12 @@ function deriveRelations(schemas: TableSchema[], prefix: string): Relation[] {
       if (col.type !== 'text' && !col.type.includes('char')) continue;
 
       const colNorm = col.name.toLowerCase();
+      // Strip _ref suffix for matching (order_ref → order, user_ref → user)
+      const colBase = colNorm.endsWith('_ref') ? colNorm.slice(0, -4) : colNorm;
       for (const other of tableNames) {
         if (other === schema.tableName) continue;
         const otherBase = other.replace(new RegExp(`^${prefix.replace(/\d/, '\\d')}`), '').toLowerCase();
-        if (colNorm === otherBase || colNorm + 's' === otherBase || colNorm === otherBase + 's') {
+        if (colBase === otherBase || colBase + 's' === otherBase || colBase === otherBase + 's') {
           relations.push({ from: schema.tableName, to: other, on: col.name });
           break;
         }
@@ -384,13 +432,17 @@ export default async function chatRoutes(fastify: FastifyInstance) {
 
       if (rawStatements.length > 1) {
         // Rewrite each statement in order (tableMap accumulates across statements)
-        const statements = rawStatements.map((s) => rewriteSQLForSession(s, tableMap, prefix));
+        const statements = rawStatements.map((s) => {
+          let rewritten = rewriteSQLForSession(s, tableMap, prefix);
+          rewritten = quoteReservedColumnNames(rewritten);
+          return rewritten;
+        });
 
         const schemas: TableSchema[] = [];
         const relations: Relation[] = [];
 
         for (const stmt of statements) {
-          if (!detectAction(stmt).startsWith('create') && detectAction(stmt) !== 'create') continue;
+          if (detectAction(stmt) !== 'create') continue;
           try {
             await query(stmt);
           } catch (err: unknown) {
@@ -459,6 +511,7 @@ export default async function chatRoutes(fastify: FastifyInstance) {
 
       // Single-statement path: rewrite table names
       sql = rewriteSQLForSession(sql, tableMap, prefix);
+      sql = quoteReservedColumnNames(sql);
 
       // Handle PREFILL response from LLM
       if (sql.startsWith('PREFILL|')) {

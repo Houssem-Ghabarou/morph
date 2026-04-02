@@ -29,9 +29,11 @@ async function getRelationsForTables(tableNames: string[]): Promise<Relation[]> 
       if (other === tbl) continue;
       // Strip the session prefix (s3_) from both for comparison
       const colNorm   = col.toLowerCase();
+      // Strip _ref suffix for matching (order_ref → order, user_ref → user)
+      const colBase   = colNorm.endsWith('_ref') ? colNorm.slice(0, -4) : colNorm;
       const otherBase = other.replace(/^s\d+_/, '').toLowerCase();
 
-      if (colNorm === otherBase || colNorm + 's' === otherBase || colNorm === otherBase + 's') {
+      if (colBase === otherBase || colBase + 's' === otherBase || colBase === otherBase + 's') {
         relations.push({ from: tbl, to: other, on: col });
         break;
       }

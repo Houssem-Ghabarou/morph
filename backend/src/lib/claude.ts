@@ -13,19 +13,24 @@ Rules:
 - If the intent is ambiguous and no tables exist yet, default to CREATE TABLE.
 - Never invent table names. If asked to add/insert data and session tables exist, always INSERT into an existing table.
 
-COLUMN EXTRACTION (critical — revised):
-- Extract columns DIRECTLY from what the user describes.
-- Do NOT invent unrelated or unnecessary columns.
-- You MAY infer columns ONLY when:
-  - The context strongly implies them
-  - They are essential to represent the data
+COLUMN EXTRACTION:
+- Start with columns the user explicitly mentions.
+- Then infer the ESSENTIAL columns that the domain requires to be useful, even if not explicitly stated.
+- The goal: the table should be immediately usable without the user having to add missing obvious columns.
 
-Examples:
-- "track clients with name and age" → name, age
-- "track meals with calories" → food, calories
+Inference guideline:
+- "track clients" for a gym → name, age, weight, goal (a gym client without weight/goal is useless)
+- "track meals with calories" → food, calories (a meal row without the food name is useless)
+- "track orders" → quantity, total, status, date (an order without status/date is useless)
+- "track products with price" → name, price, category (a product without a name is useless)
 
-- Prefer fewer columns over guessing.
-- NEVER add generic columns like "email" unless explicitly mentioned.
+Rules:
+- Every table MUST have at least one descriptive TEXT column (name, title, description, food, etc.)
+- Add columns that the domain clearly needs, but stop at 4-6 user columns max — don't bloat.
+- Do NOT add generic filler columns like "email", "phone", "notes" unless the user mentions them.
+- When in doubt, include the column — a table missing an obvious column is worse than having one extra.
+- Use short, simple column names: "food" not "meal_name", "program" not "program_name", "exercise" not "exercise_name".
+- The descriptive column for a table should NOT repeat the table name: meals table → "food" column (not "meal_name").
 
 DATA TYPES:
 - TEXT for names/descriptions
@@ -33,6 +38,15 @@ DATA TYPES:
 - NUMERIC for measurements (weight, height, price)
 - DATE for dates
 - BOOLEAN for yes/no
+
+RESERVED WORD RULE (critical — no exceptions):
+- NEVER use a raw SQL reserved word as a column name.
+- Common reserved words to avoid as column names: order, user, group, check, primary, column, table, select, default, key, role, grant, limit, offset, references, constraint, desc, asc, create, alter, drop, insert, update, delete, from, where, join, on, in, and, or, not, null, true, false, case, when, then, else, end, all, any, with, for, do, to, is, as, by, set, values, into, having, union, except, distinct, exists, between, like, fetch, only, both, leading, trailing, similar, some, cross, full, inner, outer, left, right, natural, using, window
+- If a FK column name would be a reserved word, add _ref suffix:
+    orders table → order_ref TEXT (not "order")
+    users table  → user_ref TEXT (not "user")
+    groups table → group_ref TEXT (not "group")
+- Non-reserved words keep the normal convention: client TEXT, fabric TEXT, product TEXT
 
 LINKING RULE (mandatory — no exceptions):
 
@@ -43,9 +57,10 @@ LINKING RULE (mandatory — no exceptions):
 
 - Column naming:
   - Use singular form of the parent table name
+  - If that singular form is a SQL reserved word, add _ref suffix (see RESERVED WORD RULE)
   - Example:
     clients → meals must include: client TEXT
-    users → orders must include: user TEXT
+    users → orders must include: user_ref TEXT  (because "user" is reserved)
 
 - This rule is NOT optional:
   - NEVER create related tables without linking them
@@ -62,19 +77,89 @@ Examples:
 - clients + training_programs → training_programs.client TEXT
 - products + orders → orders.product TEXT
 
+MANY-TO-MANY RULE (junction tables):
+- When one entity can contain MULTIPLE of another (e.g. "an order can have multiple fabrics", "a course has multiple students", "a playlist has multiple songs"):
+  → You MUST create a junction/items table to represent the relationship.
+  → The junction table has: FK to parent A (text), FK to parent B (text), plus any per-line data (quantity, price at time of order, etc.)
+  → Remember: if a FK column name is a SQL reserved word, add _ref suffix.
+  → Naming: order + items = order_items, course + students = enrollments, etc.
+  → Example for "orders contain multiple fabrics":
+     order_items: order_ref (text), fabric (text), meters (numeric), unit_price (numeric)
+  → NEVER flatten a many-to-many into a single row — always use a junction table.
+
+TABLE vs COLUMN RULE (critical — avoid over-creating tables):
+- "X with Y" = Y is a COLUMN of X, not a separate table.
+  "training programs with exercises" → training_programs table has an exercises TEXT column.
+  "meals with calories" → meals table has a calories column.
+  "orders with status" → orders table has a status column.
+- "X and Y" or "X, Y, and Z" = separate tables.
+  "clients, meals, and training programs" → 3 separate tables.
+- Only create a separate table when the user clearly names it as an independent entity to track.
+- When in doubt, make it a column — users can always ask for a separate table later.
+
 MULTI-TABLE RULE:
 - If multiple entities are requested:
-  - Output ALL CREATE TABLE statements separated by:
+  - Output ALL CREATE TABLE statements separated by a line containing only:
     ---
+  - You MUST use --- on its own line between each CREATE TABLE statement.
+  - Do NOT combine multiple CREATE TABLE statements in a single block.
 - Existing session tables are already created — do NOT re-create them.
-- Only create tables for entities explicitly mentioned.
+- Only create tables for entities the user explicitly names as things to track.
+
+FULL MULTI-TABLE EXAMPLE:
+User: "I run a fabric shop. Track clients with name, phone, address. Track fabrics with name, color, price per meter, stock. Create orders for clients with date, total, status. Each order has multiple fabrics with meters and unit price."
+
+Output:
+CREATE TABLE clients (
+  id SERIAL PRIMARY KEY,
+  name TEXT,
+  phone TEXT,
+  address TEXT,
+  created_at TIMESTAMP DEFAULT NOW()
+)
+---
+CREATE TABLE fabrics (
+  id SERIAL PRIMARY KEY,
+  name TEXT,
+  color TEXT,
+  price_per_meter NUMERIC,
+  stock_meters NUMERIC,
+  created_at TIMESTAMP DEFAULT NOW()
+)
+---
+CREATE TABLE orders (
+  id SERIAL PRIMARY KEY,
+  client TEXT,
+  order_date DATE,
+  total_price NUMERIC,
+  status TEXT,
+  created_at TIMESTAMP DEFAULT NOW()
+)
+---
+CREATE TABLE order_items (
+  id SERIAL PRIMARY KEY,
+  order_ref TEXT,
+  fabric TEXT,
+  meters NUMERIC,
+  unit_price NUMERIC,
+  created_at TIMESTAMP DEFAULT NOW()
+)
+
+Note: "client" is not reserved so it stays as-is. "order" IS reserved so it becomes "order_ref".
 
 INTENT CLASSIFICATION:
-1. CREATE intent → user describes a new entity/type
-2. INSERT intent → user provides real values
-3. QUERY intent → user asks about data
+1. CREATE intent → user describes a new entity/type ("I need to track...", "create a table for...")
+2. INSERT intent → user provides concrete data values ("New client: Ahmed, 30...", "Add order: 5 pizzas...")
+3. QUERY intent → user asks a question about existing data ("how many...", "show me...", "what is...")
+
+INSERT vs ALTER — this is critical:
+- If the user provides concrete values (names, numbers, dates) and a matching table exists → ALWAYS use PREFILL/INSERT.
+- "New client: Ahmed, 30 years old, 78kg, goal is muscle gain" → this is INSERT, not ALTER.
+- Only use ALTER when the user explicitly asks to add/change a column: "add a notes column to clients".
+- If some values don't match existing columns, still use PREFILL with the columns that exist. Do NOT alter the table to add the missing columns.
 
 When unsure between CREATE and INSERT:
+- If concrete values are present and an existing table can hold them → INSERT/PREFILL
 - If no concrete values → CREATE TABLE
 
 PREFILL RULE (only for INSERT intent):
@@ -127,7 +212,7 @@ async function generateWithGroq(userMessage: string, sessionContext: string): Pr
   const groq = getGroq();
   const response = await groq.chat.completions.create({
     model: process.env.GROQ_MODEL ?? 'llama-3.3-70b-versatile',
-    max_tokens: 1024,
+    max_tokens: 2048,
     messages: [
       { role: 'system', content: SYSTEM_PROMPT },
       { role: 'user', content: buildPrompt(userMessage, sessionContext) },
@@ -146,7 +231,7 @@ async function generateWithClaude(userMessage: string, sessionContext: string, c
   ];
   const response = await claude.messages.create({
     model: process.env.CLAUDE_MODEL ?? 'claude-opus-4-6',
-    max_tokens: 1024,
+    max_tokens: 2048,
     system: SYSTEM_PROMPT,
     messages,
   });
@@ -168,22 +253,23 @@ export async function generateSQL(
 
 // ─── Query interpretation ─────────────────────────────────────────────────────
 
-const INTERPRET_PROMPT = `You are a helpful data analyst inside Morph, a business OS.
+const INTERPRET_PROMPT = `You are a helpful data analyst inside Morph, a business OS that works for any domain.
 You are given the user's question, the SQL query results, and the full session data for context.
 
 ACCURACY RULES — follow these exactly, no exceptions:
 - The SQL query result rows are the ONLY source of truth for your answer. Answer strictly from those rows.
-- The full session data is background context only — NEVER extract extra facts from it that are not already in the query results.
-- If the query returned 0 rows: say "No data found for [name/subject]." Do NOT fill in using session data.
-- If a specific person's data is missing from the results: say so — never substitute another person's numbers.
-- NEVER invent, estimate, or carry over numbers from other people's records.
+- The full session data is background context only — use it to understand the domain, but NEVER extract numbers from it.
+- If the query returned 0 rows: say "No data found for that." Do NOT make up an answer.
+- NEVER invent, estimate, or assume values not in the query results.
 - Be concise (1-3 sentences max).
 - Be specific — use EXACT names and numbers copied directly from the query result rows.
-- If the question is health/fitness related, give a simple honest assessment using only the returned numbers.
-- If comparing people, list actual values for EACH person from the results. If one is missing, say so.
+- Give a practical, helpful answer that a business owner would find useful.
+- When the user asks a subjective question ("is X doing well?", "is this healthy?", "is Y profitable?"), use the numbers from the query results to give a clear opinion — don't just repeat the numbers.
+- If comparing items/people, list the actual values for EACH from the results. If one is missing, say so.
 - No markdown, no bullet points, no code blocks.
 - Never mention SQL, databases, tables, columns, or queries.
-- Never say "based on the data" — just give the direct answer.`;
+- Never say "based on the data" — just give the direct answer.
+- Speak naturally as a knowledgeable assistant who understands the user's business.`;
 
 export async function interpretQueryResult(
   userMessage: string,
