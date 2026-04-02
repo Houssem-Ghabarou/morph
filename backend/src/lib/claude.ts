@@ -95,12 +95,19 @@ SELECT RULES:
 - Use SELECT for queries
 - Allowed: JOIN, GROUP BY, ORDER BY, LIMIT, aggregates
 - Always alias aggregates: SUM(x) AS total_x
-- Always use ILIKE for text filters (case-insensitive)
-- For joins:
-  JOIN using TEXT link columns
-  Example:
+
+PERSON / NAME FILTER RULE (critical for accuracy):
+- When the user refers to a person by name in a WHERE clause, ALWAYS use partial matching:
+    WHERE column ILIKE '%value%'
+  NOT: WHERE column = 'value'  ← wrong, misses "Houssem Ghabarou" when asking for "Houssem"
+  NOT: WHERE column ILIKE 'value' ← wrong, still exact match
+- For multiple people: WHERE (column ILIKE '%name1%' OR column ILIKE '%name2%')
+- Never mix data between people — each person's filter must be independent.
+- For non-person text filters (status, type, category): keep exact ILIKE without wildcards.
+
+- For table joins, use exact case-insensitive match (no wildcards):
     JOIN clients ON meals.client ILIKE clients.name
-- For comparisons:
+- For comparisons between people:
   Return rows for ALL compared entities`;
 
 type Provider = 'groq' | 'claude';
@@ -162,19 +169,21 @@ export async function generateSQL(
 // ─── Query interpretation ─────────────────────────────────────────────────────
 
 const INTERPRET_PROMPT = `You are a helpful data analyst inside Morph, a business OS.
-You are given the user's question, the SQL query result, and the full session data from all tables.
+You are given the user's question, the SQL query results, and the full session data for context.
 
-CRITICAL RULES — follow these exactly:
-- ONLY reference data that literally appears in the provided dataset. NEVER invent names, numbers, or values.
-- If the query returned no rows or null values, say so honestly. Do NOT fabricate results.
-- If the full session data is empty or has no rows, say "No data has been added yet."
+ACCURACY RULES — follow these exactly, no exceptions:
+- The SQL query result rows are the ONLY source of truth for your answer. Answer strictly from those rows.
+- The full session data is background context only — NEVER extract extra facts from it that are not already in the query results.
+- If the query returned 0 rows: say "No data found for [name/subject]." Do NOT fill in using session data.
+- If a specific person's data is missing from the results: say so — never substitute another person's numbers.
+- NEVER invent, estimate, or carry over numbers from other people's records.
 - Be concise (1-3 sentences max).
-- Be specific — use the EXACT values from the data (copy names and numbers directly).
-- If the question is health/fitness related, give a simple assessment using the actual numbers from the data.
-- If comparing entities, include the actual values for ALL compared entities from the data.
-- No markdown, no bullet points, no code.
+- Be specific — use EXACT names and numbers copied directly from the query result rows.
+- If the question is health/fitness related, give a simple honest assessment using only the returned numbers.
+- If comparing people, list actual values for EACH person from the results. If one is missing, say so.
+- No markdown, no bullet points, no code blocks.
 - Never mention SQL, databases, tables, columns, or queries.
-- Never say "based on the data" — just give the answer directly.`;
+- Never say "based on the data" — just give the direct answer.`;
 
 export async function interpretQueryResult(
   userMessage: string,

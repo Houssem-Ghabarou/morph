@@ -64,6 +64,48 @@ export default async function dataRoutes(fastify: FastifyInstance) {
     }
   );
 
+  // Update a single row
+  fastify.patch<{ Params: { tableName: string; id: string }; Body: Record<string, unknown> }>(
+    '/api/data/:tableName/:id',
+    async (
+      request: FastifyRequest<{ Params: { tableName: string; id: string }; Body: Record<string, unknown> }>,
+      reply: FastifyReply
+    ) => {
+      const { tableName, id } = request.params;
+      if (!(await tableExists(tableName))) {
+        return reply.status(404).send({ error: `Table "${tableName}" not found` });
+      }
+      const body = request.body;
+      const columns = Object.keys(body).filter((k) => k !== 'id' && k !== 'created_at');
+      if (columns.length === 0) return reply.status(400).send({ error: 'No fields to update' });
+
+      const setClause = columns.map((c, i) => `"${sanitizeIdentifier(c)}" = $${i + 1}`).join(', ');
+      const values = [...columns.map((c) => body[c]), id];
+      const result = await query(
+        `UPDATE "${tableName}" SET ${setClause} WHERE id = $${columns.length + 1} RETURNING *`,
+        values
+      );
+      if (result.rows.length === 0) return reply.status(404).send({ error: 'Row not found' });
+      return reply.send({ row: result.rows[0] });
+    }
+  );
+
+  // Delete a single row
+  fastify.delete<{ Params: { tableName: string; id: string } }>(
+    '/api/data/:tableName/:id',
+    async (
+      request: FastifyRequest<{ Params: { tableName: string; id: string } }>,
+      reply: FastifyReply
+    ) => {
+      const { tableName, id } = request.params;
+      if (!(await tableExists(tableName))) {
+        return reply.status(404).send({ error: `Table "${tableName}" not found` });
+      }
+      await query(`DELETE FROM "${tableName}" WHERE id = $1`, [id]);
+      return reply.send({ ok: true });
+    }
+  );
+
   // ALTER schema + INSERT in one transaction
   fastify.patch<{
     Params: { tableName: string };

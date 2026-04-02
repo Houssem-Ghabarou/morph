@@ -137,6 +137,18 @@ export default async function sessionRoutes(fastify: FastifyInstance) {
     }
   );
 
+  // Rename a session
+  fastify.patch<{ Params: { id: string }; Body: { name: string } }>(
+    '/api/sessions/:id/name',
+    async (req: FastifyRequest<{ Params: { id: string }; Body: { name: string } }>, reply: FastifyReply) => {
+      const sessionId = Number(req.params.id);
+      const { name } = req.body;
+      if (!name?.trim()) return reply.status(400).send({ error: 'Name is required' });
+      await query(`UPDATE morph_sessions SET name = $1 WHERE id = $2`, [name.trim(), sessionId]);
+      return reply.send({ ok: true });
+    }
+  );
+
   // Update card position (called on drag end)
   fastify.patch<{
     Params: { id: string; tableName: string };

@@ -37,12 +37,47 @@ function sanitizeSQL(sql: string): string {
   return sql;
 }
 
-/** Convert = 'value' → ILIKE 'value' in SELECT queries so name lookups are case-insensitive. */
+/**
+ * Post-process SELECT SQL for accurate text matching:
+ * - Person/name columns (name, client, customer, employee, user, member, student, contact):
+ *     col = 'value'  →  col ILIKE '%value%'   (partial match, handles full names)
+ * - Other text columns:
+ *     col = 'value'  →  col ILIKE 'value'      (exact case-insensitive)
+ * - Also handle IN (...) for person columns.
+ */
+const PERSON_COLUMNS = new Set([
+  'name', 'client', 'customer', 'employee', 'user', 'member',
+  'student', 'contact', 'person', 'trainer', 'coach', 'patient',
+  'vendor', 'supplier', 'owner', 'author',
+]);
+
 function makeSelectCaseInsensitive(sql: string): string {
-  // Only apply to SELECT statements
   if (!sql.trimStart().toUpperCase().startsWith('SELECT')) return sql;
-  // Replace col = 'value' with col ILIKE 'value' (not col != or col >= etc.)
-  return sql.replace(/(?<![!<>])=\s*'([^']*)'/g, "ILIKE '$1'");
+
+  // col = 'value'  →  col ILIKE 'value' or ILIKE '%value%'
+  sql = sql.replace(
+    /(\b(\w+)\b)\s*(?<![!<>])=\s*'([^']*)'/g,
+    (_match, _full, col, value) => {
+      const isPersonCol = PERSON_COLUMNS.has(col.toLowerCase());
+      return isPersonCol
+        ? `${col} ILIKE '%${value}%'`
+        : `${col} ILIKE '${value}'`;
+    }
+  );
+
+  // col IN ('val1', 'val2') for person columns  →  (col ILIKE '%val1%' OR col ILIKE '%val2%')
+  sql = sql.replace(
+    /(\b(\w+)\b)\s+IN\s*\(([^)]+)\)/gi,
+    (_match, _full, col, valueList) => {
+      if (!PERSON_COLUMNS.has(col.toLowerCase())) return _match;
+      const values = [...valueList.matchAll(/'([^']*)'/g)].map((m) => m[1]);
+      if (values.length === 0) return _match;
+      const conditions = values.map((v) => `${col} ILIKE '%${v}%'`).join(' OR ');
+      return `(${conditions})`;
+    }
+  );
+
+  return sql;
 }
 
 function rewriteSQLForSession(
@@ -130,8 +165,15 @@ function detectChartType(sql: string, rows: Record<string, unknown>[]): 'bar' | 
   const upper = sql.toUpperCase();
   const hasGroupBy = upper.includes('GROUP BY');
   const hasAggregate = /\b(COUNT|SUM|AVG|MAX|MIN)\s*\(/.test(upper);
-  if (rows.length === 1 && Object.keys(rows[0]).length <= 2 && !hasGroupBy) return 'stat';
-  if (hasGroupBy && hasAggregate) return 'bar';
+  const colCount = rows.length > 0 ? Object.keys(rows[0]).length : 0;
+
+  // Single-value result with no grouping → big stat card
+  if (rows.length === 1 && colCount <= 2 && !hasGroupBy) return 'stat';
+
+  // Bar chart only when there's exactly one label + one numeric metric per group.
+  // More columns means multi-metric per row → table is always clearer.
+  if (hasGroupBy && hasAggregate && colCount <= 2) return 'bar';
+
   return 'table';
 }
 
@@ -178,15 +220,15 @@ function buildMessage(
 
   if (action === 'create') {
     if (alreadyExisted) {
-      return `Table \`${name}\` already exists — here it is. Columns: ${cols.join(', ')}.`;
+      return `The \`${name}\` module already exists — here it is. Fields: ${cols.join(', ')}.`;
     }
-    return `Table \`${name}\` created with ${cols.length} column${cols.length !== 1 ? 's' : ''}: ${cols.join(', ')}.`;
+    return `Your \`${name}\` module is ready with ${cols.length} field${cols.length !== 1 ? 's' : ''}: ${cols.join(', ')}.`;
   }
   if (action === 'alter') {
-    return `Table \`${name}\` updated. Current columns: ${cols.join(', ')}.`;
+    return `\`${name}\` module updated. Fields: ${cols.join(', ')}.`;
   }
   if (action === 'insert') {
-    return `Done — row added to \`${name}\`.`;
+    return `Done — new record added to \`${name}\`.`;
   }
   return 'Done.';
 }
@@ -259,6 +301,7 @@ export default async function chatRoutes(fastify: FastifyInstance) {
                 .join(', ');
 
               let sampleLine = '';
+              let valuesLine = '';
               try {
                 const countRes = await query(`SELECT COUNT(*) AS cnt FROM "${actual}"`);
                 const rowCount = countRes.rows[0]?.cnt ?? 0;
@@ -276,11 +319,34 @@ export default async function chatRoutes(fastify: FastifyInstance) {
                 } else {
                   sampleLine = `\n  rows: 0 (empty table)`;
                 }
+
+                // Inject distinct values for text columns so LLM uses exact stored values in WHERE clauses
+                const textCols = cols.filter(
+                  (c) =>
+                    c.column_name !== 'id' &&
+                    c.column_name !== 'created_at' &&
+                    (c.data_type === 'text' || c.data_type.includes('char'))
+                );
+                if (textCols.length > 0 && Number(countRes.rows[0]?.cnt ?? 0) > 0) {
+                  const distinctParts: string[] = [];
+                  for (const col of textCols) {
+                    const dRes = await query(
+                      `SELECT DISTINCT "${col.column_name}" FROM "${actual}" WHERE "${col.column_name}" IS NOT NULL ORDER BY "${col.column_name}" LIMIT 20`
+                    );
+                    if (dRes.rows.length > 0) {
+                      const vals = dRes.rows.map((r) => String(r[col.column_name])).join(', ');
+                      distinctParts.push(`${col.column_name}: ${vals}`);
+                    }
+                  }
+                  if (distinctParts.length > 0) {
+                    valuesLine = `\n  known values — ${distinctParts.join(' | ')}`;
+                  }
+                }
               } catch {
                 // Sample is best-effort
               }
 
-              return `- ${display}: ${colDefs}${sampleLine}`;
+              return `- ${display}: ${colDefs}${sampleLine}${valuesLine}`;
             })
           );
 
@@ -349,7 +415,7 @@ export default async function chatRoutes(fastify: FastifyInstance) {
 
         const tableNames = schemas.map((s) => s.tableName);
         const displayNames = tableNames.map((n) => stripPrefix(n, prefix));
-        const responseMessage = `Created ${schemas.length} linked tables: ${displayNames.map((n) => `\`${n}\``).join(', ')}.`;
+        const responseMessage = `${schemas.length} linked modules ready: ${displayNames.map((n) => `\`${n}\``).join(', ')}.`;
 
         let sessionName: string | undefined;
         await runInTransaction(async (client) => {
