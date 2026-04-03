@@ -1,0 +1,16 @@
+Order ID,Customer,Product,Quantity,Unit Price,Total,Status,Order Date,Shipped Date
+ORD-0001,Alice Moreau,Wireless Headphones,2,89.99,179.98,Delivered,2024-01-08,2024-01-10
+ORD-0002,Ben Nakamura,Mechanical Keyboard,1,149.00,149.00,Delivered,2024-01-09,2024-01-11
+ORD-0003,Clara Santos,Standing Desk Mat,3,34.50,103.50,Delivered,2024-01-11,2024-01-14
+ORD-0004,David Kim,USB-C Hub 7-in-1,1,49.99,49.99,Shipped,2024-01-15,2024-01-17
+ORD-0005,Emma Dupont,Ergonomic Mouse,2,62.00,124.00,Shipped,2024-01-16,2024-01-18
+ORD-0006,Felix Owusu,Monitor Arm Dual,1,95.00,95.00,Processing,2024-01-20,
+ORD-0007,Grace Lin,Desk Lamp LED,2,41.00,82.00,Processing,2024-01-21,
+ORD-0008,Hassan Abdel,Laptop Stand Aluminum,1,55.00,55.00,Delivered,2024-01-05,2024-01-07
+ORD-0009,Isabelle Roy,Webcam 1080p,1,69.00,69.00,Shipped,2024-01-22,2024-01-23
+ORD-0010,Jonas Becker,Cable Management Kit,4,18.50,74.00,Delivered,2024-01-03,2024-01-05
+ORD-0011,Kira Patel,Notebook A5 Hardcover,5,12.99,64.95,Delivered,2024-01-12,2024-01-14
+ORD-0012,Luca Ferrari,Blue Light Glasses,2,28.00,56.00,Processing,2024-01-23,
+ORD-0013,Maya Chen,Wireless Headphones,1,89.99,89.99,Shipped,2024-01-18,2024-01-20
+ORD-0014,Noah Williams,Chair Cushion Memory Foam,2,44.99,89.98,Delivered,2024-01-06,2024-01-08
+ORD-0015,Olivia Tremblay,Whiteboard 90x60,1,79.99,79.99,Processing,2024-01-24,

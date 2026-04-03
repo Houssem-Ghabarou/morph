@@ -1,12 +1,14 @@
 import 'dotenv/config';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
+import multipart from '@fastify/multipart';
 import { testConnection } from './lib/postgres';
 import { runMigrations } from './lib/migrations';
 import chatRoutes from './routes/chat';
 import schemaRoutes from './routes/schema';
 import dataRoutes from './routes/data';
 import sessionRoutes from './routes/sessions';
+import importRoutes from './routes/import';
 
 const fastify = Fastify({
   logger: {
@@ -23,11 +25,14 @@ async function bootstrap() {
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
   });
 
+  await fastify.register(multipart, { limits: { fileSize: 10 * 1024 * 1024 } }); // 10 MB max
+
   // Routes
   await fastify.register(sessionRoutes);
   await fastify.register(chatRoutes);
   await fastify.register(schemaRoutes);
   await fastify.register(dataRoutes);
+  await fastify.register(importRoutes);
 
   fastify.get('/health', async () => ({ status: 'ok' }));
 

@@ -8,7 +8,8 @@
       "Bash(npx create-next-app@latest . --typescript --tailwind --app --no-eslint --no-src-dir --import-alias \"@/*\" --yes)",
       "Bash(rm \"C:/Users/imaxe/OneDrive/Desktop/imaxeam/morph/frontend/package-lock.json\")",
       "Bash(npx tsc:*)",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Bash(cat /c/Users/imxro/Desktop/Morph/backend/src/routes/*.ts)"
     ]
   }
 }
