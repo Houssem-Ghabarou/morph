@@ -315,6 +315,72 @@ export async function interpretQueryResult(
   }
 }
 
+// ─── Analysis generation ──────────────────────────────────────────────────────
+
+const ANALYZE_PROMPT = `You are a data analyst inside Morph, a business OS.
+Given the session tables (with schemas, row counts, sample data, and relations), generate a set of useful SQL SELECT queries that produce meaningful statistics, KPIs, and insights.
+
+RULES:
+- Output ONLY a JSON array of objects. No markdown, no explanations, no code fences.
+- Each object: { "title": "Short human-readable title", "sql": "SELECT ..." }
+- Generate 6-10 queries depending on what's available.
+- Use the EXACT table names as they appear in the context (e.g. "clients", "meals", "training_programs"). Do NOT add any prefix — just use the plain names.
+- Use the EXACT column names as listed in the schemas.
+- Prioritize:
+  1. Total count per table (e.g. "Total Clients")
+  2. Aggregates on numeric columns (SUM, AVG, MAX, MIN)
+  3. GROUP BY breakdowns on text columns (e.g. status distribution, category breakdown)
+  4. Cross-table stats using JOINs if relations exist (use the relation column for joins, e.g. meals.client = clients.name)
+  5. Top/bottom rankings (ORDER BY ... DESC/ASC LIMIT 5)
+  6. Combined metrics (e.g. client with highest total calories)
+- Use clear aliases: COUNT(*) AS total, SUM(x) AS total_x, etc.
+- Keep titles short and business-friendly (no SQL jargon).
+- If a table is empty (0 rows), skip complex queries on it — just include the count.
+- NEVER use markdown. Output ONLY valid JSON.
+- NEVER add table prefixes like "s1_" or "s88_" — just use the bare table names from context.
+
+Example output:
+[{"title":"Total Clients","sql":"SELECT COUNT(*) AS total FROM clients"},{"title":"Meals by Client","sql":"SELECT client, COUNT(*) AS meals FROM meals GROUP BY client ORDER BY meals DESC"}]`;
+
+export async function generateAnalysisQueries(
+  sessionContext: string
+): Promise<Array<{ title: string; sql: string }>> {
+  const prompt = `${sessionContext}\n\nGenerate useful analytics queries for this business data.`;
+
+  try {
+    let text: string;
+    if (provider === 'claude') {
+      const claude = getClaude();
+      const resp = await claude.messages.create({
+        model: process.env.CLAUDE_MODEL ?? 'claude-opus-4-6',
+        max_tokens: 2048,
+        system: ANALYZE_PROMPT,
+        messages: [{ role: 'user', content: prompt }],
+      });
+      const block = resp.content[0];
+      text = block.type === 'text' ? block.text.trim() : '[]';
+    } else {
+      const groq = getGroq();
+      const resp = await groq.chat.completions.create({
+        model: process.env.GROQ_MODEL ?? 'llama-3.3-70b-versatile',
+        max_tokens: 2048,
+        messages: [
+          { role: 'system', content: ANALYZE_PROMPT },
+          { role: 'user', content: prompt },
+        ],
+      });
+      text = resp.choices[0]?.message?.content?.trim() ?? '[]';
+    }
+
+    // Strip markdown fences if LLM wraps them
+    text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '');
+    return JSON.parse(text);
+  } catch (err) {
+    console.error('Failed to generate analysis queries:', err);
+    return [];
+  }
+}
+
 // ─── Insert suggestion ────────────────────────────────────────────────────────
 
 const SUGGESTION_PROMPT = `You are a friendly assistant inside Morph, a business operating system.

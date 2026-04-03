@@ -1,7 +1,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { generateSQL, generateSuggestion, interpretQueryResult } from '../lib/claude';
+import { generateSQL, generateSuggestion, interpretQueryResult, generateAnalysisQueries } from '../lib/claude';
 import { query, getTableSchema, runInTransaction } from '../lib/postgres';
-import { ChatRequest, ChatResponse, TableSchema, Relation } from '../types';
+import { ChatRequest, ChatResponse, TableSchema, Relation, AnalysisCard } from '../types';
 
 const PG_DUPLICATE_TABLE = '42P07';
 
@@ -414,6 +414,57 @@ export default async function chatRoutes(fastify: FastifyInstance) {
         }
       } catch {
         // Context is best-effort — don't block the request
+      }
+
+      // ─── Analyze intent detection ─────────────────────────────────────
+      const analyzePatterns = /\b(analy[sz]e|statistics|stats|insights|overview|dashboard|kpis?|metrics|report|summarize|summary|break\s*down|give me (?:all |every )?(?:the )?(?:possible )?(?:stats|statistics|numbers|metrics|kpis))\b/i;
+      const isAnalyze = analyzePatterns.test(message) && tableMap.size > 0;
+
+      if (isAnalyze) {
+        const analysisQueries = await generateAnalysisQueries(sessionContext);
+        const analyses: AnalysisCard[] = [];
+
+        for (const q of analysisQueries) {
+          try {
+            let sql = sanitizeSQL(q.sql);
+            sql = rewriteSQLForSession(sql, tableMap, prefix);
+            sql = makeSelectCaseInsensitive(sql);
+            const result = await query(sql);
+            const rows = result.rows as Record<string, unknown>[];
+            if (rows.length === 0) continue;
+            const columns = Object.keys(rows[0]);
+            const chartType = detectChartType(sql, rows);
+            analyses.push({ title: q.title, sql, rows, columns, chartType });
+          } catch (err) {
+            fastify.log.warn(`Analysis query failed: ${q.title} — ${String(err)}`);
+          }
+        }
+
+        const titles = analyses.map((a) => a.title);
+        const responseMessage = analyses.length > 0
+          ? `Here's a full analysis of your data — ${analyses.length} insights generated: ${titles.join(', ')}.`
+          : 'I couldn\'t generate any statistics yet. Try adding some data first.';
+
+        let sessionName: string | undefined;
+        await runInTransaction(async (client) => {
+          await client.query(`INSERT INTO morph_messages (session_id, role, text) VALUES ($1, 'user', $2)`, [sessionId, message]);
+          await client.query(`INSERT INTO morph_messages (session_id, role, text) VALUES ($1, 'system', $2)`, [sessionId, responseMessage]);
+          const nameResult = await client.query(
+            `UPDATE morph_sessions SET name = LEFT($2, 45), updated_at = NOW() WHERE id = $1 AND name = 'New Chat' RETURNING name`,
+            [sessionId, message]
+          );
+          if (nameResult.rows.length > 0) sessionName = nameResult.rows[0].name;
+          else await client.query(`UPDATE morph_sessions SET updated_at = NOW() WHERE id = $1`, [sessionId]);
+        });
+
+        return reply.send({
+          sql: analyses.map((a) => a.sql).join(';\n'),
+          message: responseMessage,
+          schema: null,
+          action: 'analyze',
+          analyses,
+          ...(sessionName ? { sessionName } : {}),
+        } satisfies ChatResponse);
       }
 
       let sql: string;

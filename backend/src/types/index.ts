@@ -20,11 +20,19 @@ export interface Relation {
   on: string;   // FK column name
 }
 
+export interface AnalysisCard {
+  title: string;
+  sql: string;
+  rows: Record<string, unknown>[];
+  columns: string[];
+  chartType: 'bar' | 'stat' | 'table';
+}
+
 export interface ChatResponse {
   sql: string;
   message: string;
   schema: TableSchema | null;
-  action: 'create' | 'alter' | 'insert' | 'select' | 'unknown' | 'prefill' | 'query' | 'create_many';
+  action: 'create' | 'alter' | 'insert' | 'select' | 'unknown' | 'prefill' | 'query' | 'create_many' | 'analyze';
   alreadyExisted?: boolean;
   sessionName?: string;
   suggestion?: string;
@@ -34,6 +42,7 @@ export interface ChatResponse {
   chartType?: 'bar' | 'stat' | 'table';
   schemas?: TableSchema[];
   relations?: Relation[];
+  analyses?: AnalysisCard[];
 }
 
 export interface Session {
