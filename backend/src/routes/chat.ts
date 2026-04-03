@@ -1,5 +1,5 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { generateSQL, generateSuggestion, interpretQueryResult, generateAnalysisQueries } from '../lib/claude';
+import { generateSQL, generateSuggestion, interpretQueryResult, generateAnalysisQueries, generateSeedData } from '../lib/claude';
 import { query, getTableSchema, runInTransaction } from '../lib/postgres';
 import { ChatRequest, ChatResponse, TableSchema, Relation, AnalysisCard } from '../types';
 
@@ -419,6 +419,179 @@ export default async function chatRoutes(fastify: FastifyInstance) {
       // ─── Analyze intent detection ─────────────────────────────────────
       const analyzePatterns = /\b(analy[sz]e|statistics|stats|insights|overview|dashboard|kpis?|metrics|report|summarize|summary|break\s*down|give me (?:all |every )?(?:the )?(?:possible )?(?:stats|statistics|numbers|metrics|kpis))\b/i;
       const isAnalyze = analyzePatterns.test(message) && tableMap.size > 0;
+
+      // ─── Seed / random-data intent detection ──────────────────────────
+      const seedPatterns = /\b(add\s+(?:random|sample|fake|test|demo|dummy|mock|seed)\s+data|seed\s+(?:all|every|the)?\s*(?:tables?|modules?)?|populate\s+(?:all|every|the)?\s*(?:tables?|modules?)?|fill\s+(?:all|every|the)?\s*(?:tables?|modules?)\s+with\s+(?:random|sample|fake|test|demo|dummy)|generate\s+(?:random|sample|fake|test|demo|dummy)\s+(?:data|rows|records)|random\s+data\s+(?:to|for|in)\s+all|add\s+data\s+to\s+all)\b/i;
+      const isSeed = seedPatterns.test(message) && tableMap.size > 0;
+
+      if (isSeed) {
+        // Build compact schema map (no sample rows / distinct values — saves tokens)
+        const allSchemas: { display: string; actual: string }[] = [];
+        const validColumns = new Map<string, Set<string>>();
+        const seedSchemaLines: string[] = [];
+
+        for (const [display, actual] of tableMap.entries()) {
+          allSchemas.push({ display, actual });
+          const cols = await getTableSchema(actual);
+          const userCols = cols.filter(
+            (c) => c.column_name !== 'id' && c.column_name !== 'created_at' && c.column_name !== 'updated_at'
+          );
+          validColumns.set(display, new Set(userCols.map((c) => c.column_name)));
+          seedSchemaLines.push(
+            `- ${display}: ${userCols.map((c) => `${c.column_name} (${c.data_type})`).join(', ')}`
+          );
+        }
+
+        const allRelations = deriveRelations(
+          await Promise.all(
+            allSchemas.map(async ({ actual }) => {
+              const cols = await getTableSchema(actual);
+              return {
+                tableName: actual,
+                columns: cols.map((c) => ({
+                  name: c.column_name,
+                  type: c.data_type,
+                  nullable: c.is_nullable === 'YES',
+                })),
+              };
+            })
+          ),
+          prefix
+        );
+
+        let relSection = '';
+        if (allRelations.length > 0) {
+          const relLines = allRelations.map((r) =>
+            `- ${stripPrefix(r.from, prefix)}.${r.on} → ${stripPrefix(r.to, prefix)}`
+          );
+          relSection = `\n\nRelations:\n${relLines.join('\n')}`;
+        }
+
+        const seedContext = `Tables:\n${seedSchemaLines.join('\n')}${relSection}`;
+
+        const seedData = await generateSeedData(seedContext);
+
+        // Build dependency graph: child → set of parent display names
+        const parentOf = new Map<string, Set<string>>();
+        for (const { display } of allSchemas) parentOf.set(display, new Set());
+        for (const rel of allRelations) {
+          const fromDisplay = stripPrefix(rel.from, prefix);
+          const toDisplay = stripPrefix(rel.to, prefix);
+          parentOf.get(fromDisplay)?.add(toDisplay);
+        }
+
+        // Kahn's algorithm — in-degree = number of parent dependencies
+        const inDegree = new Map<string, number>();
+        for (const [child, parents] of parentOf.entries()) {
+          inDegree.set(child, parents.size);
+        }
+        const queue: string[] = [];
+        for (const [name, deg] of inDegree.entries()) {
+          if (deg === 0) queue.push(name);
+        }
+        const sorted: string[] = [];
+        while (queue.length > 0) {
+          const node = queue.shift()!;
+          sorted.push(node);
+          for (const [child, parents] of parentOf.entries()) {
+            if (parents.has(node)) {
+              const newDeg = (inDegree.get(child) ?? 1) - 1;
+              inDegree.set(child, newDeg);
+              if (newDeg === 0) queue.push(child);
+            }
+          }
+        }
+        // Add any remaining (cyclic or unresolved) tables
+        for (const { display } of allSchemas) {
+          if (!sorted.includes(display)) sorted.push(display);
+        }
+
+        // Resolve LLM-returned keys to display names (handle prefix or case mismatches)
+        const resolvedSeedData = new Map<string, Record<string, unknown>[]>();
+        for (const [key, rows] of Object.entries(seedData)) {
+          if (!Array.isArray(rows)) continue;
+          // Try exact match first, then stripped prefix, then case-insensitive
+          const display =
+            tableMap.has(key) ? key
+            : tableMap.has(stripPrefix(key, prefix)) ? stripPrefix(key, prefix)
+            : [...tableMap.keys()].find((d) => d.toLowerCase() === key.toLowerCase())
+              ?? null;
+          if (display) resolvedSeedData.set(display, rows);
+        }
+
+        const seedResult: { table: string; count: number }[] = [];
+        let totalInserted = 0;
+
+        // Insert each row individually (not in a single transaction)
+        // so one bad row doesn't abort everything via PG transaction poison
+        for (const display of sorted) {
+          const actual = tableMap.get(display);
+          if (!actual) continue;
+          const rows = resolvedSeedData.get(display);
+          if (!rows || rows.length === 0) continue;
+
+          const allowedCols = validColumns.get(display) ?? new Set();
+
+          let tableCount = 0;
+          for (const row of rows) {
+            // Only use columns that actually exist in the table
+            const columns = Object.keys(row).filter((k) => allowedCols.has(k));
+            if (columns.length === 0) {
+              continue;
+            }
+
+            const values = columns.map((k) => {
+              const v = row[k];
+              return v === undefined ? null : v;
+            });
+            const placeholders = columns.map((_, i) => `$${i + 1}`);
+            try {
+              await query(
+                `INSERT INTO "${actual}" (${columns.map((c) => `"${c}"`).join(', ')}) VALUES (${placeholders.join(', ')})`,
+                values
+              );
+              tableCount++;
+              totalInserted++;
+            } catch (err) {
+            }
+          }
+          if (tableCount > 0) {
+            seedResult.push({ table: display, count: tableCount });
+          }
+        }
+
+        const summary = seedResult.map((r) => `\`${r.table}\` (${r.count})`).join(', ');
+        const responseMessage = totalInserted > 0
+          ? `Seeded ${totalInserted} rows across ${seedResult.length} module${seedResult.length !== 1 ? 's' : ''}: ${summary}.`
+          : 'No data could be generated. Make sure your tables have been created first.';
+
+        let sessionName: string | undefined;
+        await runInTransaction(async (client) => {
+          await client.query(
+            `INSERT INTO morph_messages (session_id, role, text) VALUES ($1, 'user', $2)`,
+            [sessionId, message]
+          );
+          await client.query(
+            `INSERT INTO morph_messages (session_id, role, text) VALUES ($1, 'system', $2)`,
+            [sessionId, responseMessage]
+          );
+          const nameResult = await client.query(
+            `UPDATE morph_sessions SET name = LEFT($2, 45), updated_at = NOW() WHERE id = $1 AND name = 'New Chat' RETURNING name`,
+            [sessionId, message]
+          );
+          if (nameResult.rows.length > 0) sessionName = nameResult.rows[0].name;
+          else await client.query(`UPDATE morph_sessions SET updated_at = NOW() WHERE id = $1`, [sessionId]);
+        });
+
+        return reply.send({
+          sql: '',
+          message: responseMessage,
+          schema: null,
+          action: 'seed',
+          seedResult,
+          ...(sessionName ? { sessionName } : {}),
+        } satisfies ChatResponse);
+      }
 
       if (isAnalyze) {
         const analysisQueries = await generateAnalysisQueries(sessionContext);

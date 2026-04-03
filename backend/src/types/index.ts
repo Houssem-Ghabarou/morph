@@ -32,7 +32,7 @@ export interface ChatResponse {
   sql: string;
   message: string;
   schema: TableSchema | null;
-  action: 'create' | 'alter' | 'insert' | 'select' | 'unknown' | 'prefill' | 'query' | 'create_many' | 'analyze';
+  action: 'create' | 'alter' | 'insert' | 'select' | 'unknown' | 'prefill' | 'query' | 'create_many' | 'analyze' | 'seed';
   alreadyExisted?: boolean;
   sessionName?: string;
   suggestion?: string;
@@ -43,6 +43,7 @@ export interface ChatResponse {
   schemas?: TableSchema[];
   relations?: Relation[];
   analyses?: AnalysisCard[];
+  seedResult?: { table: string; count: number }[];
 }
 
 export interface Session {

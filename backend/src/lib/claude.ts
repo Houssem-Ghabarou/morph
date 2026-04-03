@@ -381,6 +381,93 @@ export async function generateAnalysisQueries(
   }
 }
 
+// ─── Seed data generation ─────────────────────────────────────────────────────
+
+const SEED_PROMPT = `Output ONLY compact JSON. No markdown/explanations.
+Map each table name to an array of 3 row objects. Omit id/created_at.
+FK columns MUST match a value from the referenced parent table.
+Keep text values short (1-3 words). Use realistic varied data.
+Example: {"clients":[{"name":"Sara","age":28}],"meals":[{"client":"Sara","food":"Salmon","calories":520}]}`;
+
+/**
+ * Try to salvage truncated JSON by closing any open structures.
+ * Strips trailing broken values and closes all open brackets/braces.
+ */
+function repairTruncatedJSON(raw: string): string {
+  // Strip trailing comma, partial key/value, and incomplete strings
+  let s = raw.replace(/,\s*"[^"]*$/, '');         // partial key
+  s = s.replace(/,\s*"[^"]*":\s*"?[^"}\]]*$/, ''); // partial key:value
+  s = s.replace(/,\s*$/, '');                      // trailing comma
+
+  // Count open brackets/braces and close them
+  const opens: string[] = [];
+  let inStr = false;
+  let escape = false;
+  for (const ch of s) {
+    if (escape) { escape = false; continue; }
+    if (ch === '\\') { escape = true; continue; }
+    if (ch === '"') { inStr = !inStr; continue; }
+    if (inStr) continue;
+    if (ch === '{' || ch === '[') opens.push(ch);
+    if (ch === '}' || ch === ']') opens.pop();
+  }
+  // If we're inside a string, close it
+  if (inStr) s += '"';
+  // Close remaining open structures
+  while (opens.length > 0) {
+    const open = opens.pop();
+    s += open === '{' ? '}' : ']';
+  }
+  return s;
+}
+
+export async function generateSeedData(
+  sessionContext: string
+): Promise<Record<string, Record<string, unknown>[]>> {
+  const prompt = `${sessionContext}\n\nGenerate 3 rows per table. Compact JSON only.`;
+
+  try {
+    let text: string;
+    if (provider === 'claude') {
+      const claude = getClaude();
+      const resp = await claude.messages.create({
+        model: process.env.CLAUDE_MODEL ?? 'claude-opus-4-6',
+        max_tokens: 4096,
+        system: SEED_PROMPT,
+        messages: [{ role: 'user', content: prompt }],
+      });
+      const block = resp.content[0];
+      text = block.type === 'text' ? block.text.trim() : '{}';
+    } else {
+      const groq = getGroq();
+      const resp = await groq.chat.completions.create({
+        model: process.env.GROQ_MODEL ?? 'llama-3.3-70b-versatile',
+        max_tokens: 4096,
+        messages: [
+          { role: 'system', content: SEED_PROMPT },
+          { role: 'user', content: prompt },
+        ],
+      });
+      text = resp.choices[0]?.message?.content?.trim() ?? '{}';
+    }
+
+    text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '');
+
+    // Try parsing as-is first
+    try {
+      return JSON.parse(text);
+    } catch {
+      console.log('Seed JSON parse failed, attempting repair…');
+      console.log('Raw tail:', text.slice(-200));
+      const repaired = repairTruncatedJSON(text);
+      return JSON.parse(repaired);
+    }
+  } catch (err) {
+    console.error('Failed to generate seed data:', err);
+    return {};
+  }
+}
+
 // ─── Insert suggestion ────────────────────────────────────────────────────────
 
 const SUGGESTION_PROMPT = `You are a friendly assistant inside Morph, a business operating system.
