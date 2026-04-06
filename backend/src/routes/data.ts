@@ -106,6 +106,30 @@ export default async function dataRoutes(fastify: FastifyInstance) {
     }
   );
 
+  // Drop a whole table (and remove from session)
+  fastify.delete<{ Params: { tableName: string }; Querystring: { sessionId: string } }>(
+    '/api/data/:tableName/drop',
+    async (
+      request: FastifyRequest<{ Params: { tableName: string }; Querystring: { sessionId: string } }>,
+      reply: FastifyReply
+    ) => {
+      const { tableName } = request.params;
+      const sessionId = parseInt(request.query.sessionId, 10);
+      if (isNaN(sessionId)) return reply.status(400).send({ error: 'sessionId required' });
+      if (!(await tableExists(tableName))) return reply.status(404).send({ error: `Table "${tableName}" not found` });
+
+      await runInTransaction(async (client) => {
+        await client.query(`DROP TABLE IF EXISTS "${tableName}" CASCADE`);
+        await client.query(
+          `DELETE FROM morph_session_tables WHERE session_id = $1 AND table_name = $2`,
+          [sessionId, tableName]
+        );
+      });
+
+      return reply.send({ ok: true });
+    }
+  );
+
   // ALTER schema + INSERT in one transaction
   fastify.patch<{
     Params: { tableName: string };

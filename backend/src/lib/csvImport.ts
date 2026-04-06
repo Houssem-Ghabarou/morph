@@ -91,7 +91,11 @@ Rules:
 - tableName must be snake_case and describe the data (e.g. "products", "employees", "orders")
 - pgName must be snake_case
 - pgType must be one of: TEXT, INTEGER, NUMERIC, BOOLEAN, DATE, TIMESTAMP
-- Infer the most appropriate type from the sample values`;
+- Infer the most appropriate type strictly from the actual sample values, NOT from the header name
+- Use DATE only if sample values are actual calendar dates (e.g. "2024-01-15", "01/15/2024", "Jan 15 2024")
+- Use INTEGER only if all sample values are whole numbers (e.g. "4", "10"). Use TEXT for ranges like "5-8" or "10-12"
+- Use TEXT for labels, identifiers, ranges, mixed content, or anything that does not clearly fit a stricter type
+- When in doubt, use TEXT`;
 
   const raw = await callLLM(prompt);
   const json = parseJSON(raw);

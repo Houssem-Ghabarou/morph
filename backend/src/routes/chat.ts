@@ -1,5 +1,5 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { generateSQL, generateSuggestion, interpretQueryResult, generateAnalysisQueries, generateSeedData } from '../lib/claude';
+import { generateSQL, generateSuggestion, interpretQueryResult, generateAnalysisQueries, generateSeedData, generateContextualSeedData } from '../lib/claude';
 import { query, getTableSchema, runInTransaction } from '../lib/postgres';
 import { ChatRequest, ChatResponse, TableSchema, Relation, AnalysisCard } from '../types';
 
@@ -418,11 +418,163 @@ export default async function chatRoutes(fastify: FastifyInstance) {
 
       // ─── Analyze intent detection ─────────────────────────────────────
       const analyzePatterns = /\b(analy[sz]e|statistics|stats|insights|overview|dashboard|kpis?|metrics|report|summarize|summary|break\s*down|give me (?:all |every )?(?:the )?(?:possible )?(?:stats|statistics|numbers|metrics|kpis))\b/i;
-      const isAnalyze = analyzePatterns.test(message) && tableMap.size > 0;
+      const createOverridePatterns = /\b(create|build|make|set up|setup|add|design|plan|generate)\b.{0,60}\b(module|table|tracker|plan|schedule|log|system)\b/i;
+      const isAnalyze = analyzePatterns.test(message) && tableMap.size > 0 && !createOverridePatterns.test(message);
 
       // ─── Seed / random-data intent detection ──────────────────────────
       const seedPatterns = /\b(add\s+(?:random|sample|fake|test|demo|dummy|mock|seed)\s+data|seed\s+(?:all|every|the)?\s*(?:tables?|modules?)?|populate\s+(?:all|every|the)?\s*(?:tables?|modules?)?|fill\s+(?:all|every|the)?\s*(?:tables?|modules?)\s+with\s+(?:random|sample|fake|test|demo|dummy)|generate\s+(?:random|sample|fake|test|demo|dummy)\s+(?:data|rows|records)|random\s+data\s+(?:to|for|in)\s+all|add\s+data\s+to\s+all)\b/i;
       const isSeed = seedPatterns.test(message) && tableMap.size > 0;
+
+      // ─── Create-and-fill from existing data detection ─────────────────
+      // Triggers when user wants to create a new module AND pre-fill it based on their real data
+      const createAndFillPatterns = /\b(based\s+(?:on|from)|from\s+my|using\s+my|according\s+to\s+my|derived?\s+from)\b.*\b(data|profile|schedule|measurements?|records?|history)\b/i;
+      const isCreateAndFill = createOverridePatterns.test(message) && createAndFillPatterns.test(message) && tableMap.size > 0;
+
+      if (isCreateAndFill) {
+        // Step 1: Generate and execute CREATE TABLE SQL using the LLM
+        let createSQL: string;
+        try {
+          createSQL = await generateSQL(message, sessionContext);
+        } catch (err) {
+          fastify.log.error(err);
+          return reply.status(502).send({ error: 'Could not reach the LLM. Check your API key.' });
+        }
+        createSQL = sanitizeSQL(createSQL);
+
+        const rawStatements = createSQL.split(/^\s*---\s*$/m).map((s) => s.trim()).filter(Boolean);
+        const createStatements = rawStatements.map((s) => {
+          let r = rewriteSQLForSession(s, tableMap, prefix);
+          r = quoteReservedColumnNames(r);
+          return r;
+        }).filter((s) => detectAction(s) === 'create');
+
+        const newSchemas: TableSchema[] = [];
+        for (const stmt of createStatements) {
+          try {
+            await query(stmt);
+          } catch (err: unknown) {
+            const pgErr = err as { code?: string };
+            if (pgErr.code !== PG_DUPLICATE_TABLE) {
+              fastify.log.error(err);
+              continue;
+            }
+          }
+          const tName = extractTableName(stmt);
+          if (tName) {
+            const cols = await getTableSchema(tName);
+            newSchemas.push({
+              tableName: tName,
+              columns: cols.map((c) => ({ name: c.column_name, type: c.data_type, nullable: c.is_nullable === 'YES' })),
+            });
+            tableMap.set(stripPrefix(tName, prefix), tName);
+          }
+        }
+
+        if (newSchemas.length === 0) {
+          return reply.status(500).send({ error: 'Could not create any tables from that request.' });
+        }
+
+        // Step 2: Fetch all existing session data as context for the LLM
+        let existingDataContext = '';
+        try {
+          const parts: string[] = [];
+          for (const [display, actual] of tableMap.entries()) {
+            if (newSchemas.some((s) => s.tableName === actual)) continue; // skip new empty tables
+            const res = await query(`SELECT * FROM "${actual}" ORDER BY id ASC LIMIT 50`);
+            if (res.rows.length === 0) continue;
+            const cleaned = res.rows.map((r) => {
+              const { id: _id, created_at: _ca, ...rest } = r as Record<string, unknown> & { id: unknown; created_at: unknown };
+              return rest;
+            });
+            parts.push(`=== ${display} (${res.rows.length} rows) ===\n${cleaned.map((r) => JSON.stringify(r)).join('\n')}`);
+          }
+          existingDataContext = parts.join('\n\n');
+        } catch {
+          // best-effort
+        }
+
+        // Step 3: Build new tables schema description for the seed LLM
+        const newTablesContext = newSchemas.map((s) => {
+          const cols = s.columns
+            .filter((c) => c.name !== 'id' && c.name !== 'created_at')
+            .map((c) => `${c.name} (${c.type})`).join(', ');
+          return `- ${stripPrefix(s.tableName, prefix)}: ${cols}`;
+        }).join('\n');
+
+        // Step 4: Generate contextual rows and insert them
+        const seedData = await generateContextualSeedData(message, existingDataContext, newTablesContext);
+
+        const validColumns = new Map<string, Set<string>>();
+        for (const schema of newSchemas) {
+          const display = stripPrefix(schema.tableName, prefix);
+          validColumns.set(display, new Set(
+            schema.columns.filter((c) => c.name !== 'id' && c.name !== 'created_at').map((c) => c.name)
+          ));
+        }
+
+        const seedResult: { table: string; count: number }[] = [];
+        let totalInserted = 0;
+
+        for (const schema of newSchemas) {
+          const display = stripPrefix(schema.tableName, prefix);
+          const actual = schema.tableName;
+          const rows = seedData[display] ?? seedData[actual] ?? [];
+          const allowedCols = validColumns.get(display) ?? new Set();
+
+          let tableCount = 0;
+          for (const row of rows) {
+            const columns = Object.keys(row).filter((k) => allowedCols.has(k));
+            if (columns.length === 0) continue;
+            const values = columns.map((k) => (row[k] === undefined ? null : row[k]));
+            const placeholders = columns.map((_, i) => `$${i + 1}`);
+            try {
+              await query(
+                `INSERT INTO "${actual}" (${columns.map((c) => `"${c}"`).join(', ')}) VALUES (${placeholders.join(', ')})`,
+                values
+              );
+              tableCount++;
+              totalInserted++;
+            } catch (err) {
+              fastify.log.warn(`Contextual seed insert failed for ${display}: ${String(err)}`);
+            }
+          }
+          if (tableCount > 0) seedResult.push({ table: display, count: tableCount });
+        }
+
+        const displayNames = newSchemas.map((s) => `\`${stripPrefix(s.tableName, prefix)}\``).join(', ');
+        const responseMessage = totalInserted > 0
+          ? `Created and filled ${displayNames} with ${totalInserted} rows based on your existing data.`
+          : `Created ${displayNames}. Couldn't auto-fill — try seeding manually.`;
+
+        let sessionName: string | undefined;
+        await runInTransaction(async (client) => {
+          await client.query(`INSERT INTO morph_messages (session_id, role, text) VALUES ($1, 'user', $2)`, [sessionId, message]);
+          await client.query(`INSERT INTO morph_messages (session_id, role, text) VALUES ($1, 'system', $2)`, [sessionId, responseMessage]);
+          for (const schema of newSchemas) {
+            await client.query(
+              `INSERT INTO morph_session_tables (session_id, table_name) VALUES ($1, $2) ON CONFLICT (session_id, table_name) DO NOTHING`,
+              [sessionId, schema.tableName]
+            );
+          }
+          const nameResult = await client.query(
+            `UPDATE morph_sessions SET name = LEFT($2, 45), updated_at = NOW() WHERE id = $1 AND name = 'New Chat' RETURNING name`,
+            [sessionId, message]
+          );
+          if (nameResult.rows.length > 0) sessionName = nameResult.rows[0].name;
+          else await client.query(`UPDATE morph_sessions SET updated_at = NOW() WHERE id = $1`, [sessionId]);
+        });
+
+        return reply.send({
+          sql: createStatements.join('\n---\n'),
+          message: responseMessage,
+          schema: null,
+          action: 'create_many',
+          schemas: newSchemas,
+          relations: deriveRelations(newSchemas, prefix),
+          seedResult,
+          ...(sessionName ? { sessionName } : {}),
+        } satisfies ChatResponse);
+      }
 
       if (isSeed) {
         // Build compact schema map (no sample rows / distinct values — saves tokens)

@@ -421,6 +421,65 @@ function repairTruncatedJSON(raw: string): string {
   return s;
 }
 
+export async function generateContextualSeedData(
+  userRequest: string,
+  existingDataContext: string,
+  newTablesContext: string
+): Promise<Record<string, Record<string, unknown>[]>> {
+  const CONTEXTUAL_SEED_PROMPT = `Output ONLY compact JSON. No markdown/explanations.
+Map each new table name to an array of row objects. Omit id/created_at.
+Generate realistic, personalized rows derived from the user's actual existing data.
+Be specific: use the real values (names, weights, exercises, days) from the existing data.
+For nutrition/meal plans: generate one entry per training day and rest day in the schedule.
+FK columns must reference values that appear in the user's existing data.`;
+
+  const prompt = `User request: "${userRequest}"
+
+Existing user data:
+${existingDataContext || '(none)'}
+
+New tables to fill (generate rows for ONLY these):
+${newTablesContext}
+
+Return JSON mapping each new table name to its rows.`;
+
+  try {
+    let text: string;
+    if (provider === 'claude') {
+      const claude = getClaude();
+      const resp = await claude.messages.create({
+        model: process.env.CLAUDE_MODEL ?? 'claude-opus-4-6',
+        max_tokens: 4096,
+        system: CONTEXTUAL_SEED_PROMPT,
+        messages: [{ role: 'user', content: prompt }],
+      });
+      const block = resp.content[0];
+      text = block.type === 'text' ? block.text.trim() : '{}';
+    } else {
+      const groq = getGroq();
+      const resp = await groq.chat.completions.create({
+        model: process.env.GROQ_MODEL ?? 'llama-3.3-70b-versatile',
+        max_tokens: 4096,
+        messages: [
+          { role: 'system', content: CONTEXTUAL_SEED_PROMPT },
+          { role: 'user', content: prompt },
+        ],
+      });
+      text = resp.choices[0]?.message?.content?.trim() ?? '{}';
+    }
+
+    text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '');
+    try {
+      return JSON.parse(text);
+    } catch {
+      return JSON.parse(repairTruncatedJSON(text));
+    }
+  } catch (err) {
+    console.error('Failed to generate contextual seed data:', err);
+    return {};
+  }
+}
+
 export async function generateSeedData(
   sessionContext: string
 ): Promise<Record<string, Record<string, unknown>[]>> {

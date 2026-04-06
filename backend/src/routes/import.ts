@@ -3,6 +3,39 @@ import { parse } from 'csv-parse/sync';
 import { query, runInTransaction, getTableSchema } from '../lib/postgres';
 import { analyzeCSV, ColumnSuggestion, ColumnMapping } from '../lib/csvImport';
 
+function coerceValue(value: string | null | undefined, pgType: string): unknown {
+  if (value === undefined || value === null || value === '') return null;
+  const type = pgType.toUpperCase();
+
+  if (type === 'INTEGER') {
+    const cleaned = value.replace(/,/g, '').trim();
+    const n = parseInt(cleaned, 10);
+    return isNaN(n) ? null : n;
+  }
+  if (type === 'NUMERIC') {
+    const cleaned = value.replace(/,/g, '').trim();
+    const n = parseFloat(cleaned);
+    return isNaN(n) ? null : n;
+  }
+  if (type === 'BOOLEAN') {
+    const v = value.trim().toLowerCase();
+    if (['true', 'yes', '1', 't'].includes(v)) return true;
+    if (['false', 'no', '0', 'f'].includes(v)) return false;
+    return null;
+  }
+  if (type === 'DATE' || type === 'TIMESTAMP') {
+    const v = value.trim();
+    // Must look like an actual date: YYYY-MM-DD, MM/DD/YYYY, "Jan 15 2024", etc.
+    const looksLikeDate = /^\d{4}-\d{2}-\d{2}/.test(v) ||
+      /^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}/.test(v) ||
+      /^[A-Za-z]{3,9}\s+\d{1,2},?\s+\d{4}/.test(v);
+    if (!looksLikeDate) return null;
+    const d = new Date(v);
+    return isNaN(d.getTime()) ? null : v;
+  }
+  return value;
+}
+
 interface ConfirmNewBody {
   flow: 'new';
   sessionId: number;
@@ -133,9 +166,8 @@ export default async function importRoutes(fastify: FastifyInstance) {
             );
 
             for (const row of rows) {
-              const vals = columns.map((_c, i) => {
-                const v = row[i];
-                return v === undefined || v === '' ? null : v;
+              const vals = columns.map((c, i) => {
+                return coerceValue(row[i], c.pgType);
               });
               const colList = columns.map((c) => `"${c.pgName}"`).join(', ');
               const placeholders = columns.map((_c, i) => `$${i + 1}`).join(', ');
@@ -161,13 +193,20 @@ export default async function importRoutes(fastify: FastifyInstance) {
           return reply.status(400).send({ error: 'No columns are mapped — nothing to import' });
         }
 
+        const tableSchema = await getTableSchema(tableName);
+        const colTypeMap: Record<string, string> = {};
+        for (const col of tableSchema) {
+          colTypeMap[col.column_name] = col.data_type.toUpperCase();
+        }
+
         try {
           await runInTransaction(async (client) => {
             for (const row of rows) {
               const vals = activeMappings.map((m) => {
                 const idx = headers.indexOf(m.csvHeader);
                 const v = idx >= 0 ? row[idx] : null;
-                return v === undefined || v === '' ? null : v;
+                const pgType = m.tableColumn ? (colTypeMap[m.tableColumn] ?? 'TEXT') : 'TEXT';
+                return coerceValue(v, pgType);
               });
               const colList = activeMappings.map((m) => `"${m.tableColumn}"`).join(', ');
               const placeholders = activeMappings.map((_m, i) => `$${i + 1}`).join(', ');
