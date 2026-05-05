@@ -1,0 +1,126 @@
+@startuml use_case_updated
+title Diagramme des Cas d'Utilisation — Morph (mis à jour)
+
+left to right direction
+
+skinparam actorStyle awesome
+skinparam backgroundColor #FFFFFF
+skinparam usecase {
+  BackgroundColor #EDE7F6
+  BorderColor #7C3AED
+  FontSize 11
+}
+skinparam actor {
+  BackgroundColor #F3E8FF
+  BorderColor #7C3AED
+  FontSize 11
+}
+skinparam ArrowColor #5B21B6
+skinparam packageStyle rectangle
+skinparam packageBorderColor #C4B5FD
+skinparam packageFontSize 11
+skinparam packageFontStyle bold
+skinparam noteFontSize 10
+skinparam noteBackgroundColor #FFFDE7
+skinparam noteBorderColor #F9A825
+
+' ══════════════════════════════════════════════════════════════════
+' ACTEURS — GAUCHE : utilisateurs humains
+' ══════════════════════════════════════════════════════════════════
+
+actor "Visiteur\n(non connecté)" as Visitor
+actor "Utilisateur\n(authentifié)" as User
+
+' ══════════════════════════════════════════════════════════════════
+' CAS D'UTILISATION
+' ══════════════════════════════════════════════════════════════════
+
+package "Authentification" {
+  usecase "S'inscrire"               as Register
+  usecase "Se connecter"             as Login
+  usecase "Se déconnecter"           as Logout
+  usecase "Vérifier l'identité"      as CheckAuth
+}
+
+package "Gestion des Sessions" {
+  usecase "Créer une session"       as CreateSession
+  usecase "Renommer / Supprimer"    as ManageSession
+  usecase "Changer de session"      as SwitchSession
+}
+
+package "Interaction LLM" {
+  usecase "Envoyer un message\n(langage naturel)"  as Chat
+  usecase "Créer / Modifier\nune table"            as ManageTable
+  usecase "Analyser les données"                   as Analyze
+  usecase "Générer des données\nexemples (Seed)"   as Seed
+}
+
+package "Données & Import" {
+  usecase "Importer un CSV"             as ImportCSV
+  usecase "Éditer les données\n(CRUD)"  as RowCRUD
+}
+
+package "Visualisation" {
+  usecase "Voir le canvas\n(tables + graphiques)"  as ViewCanvas
+  usecase "Déplacer les cartes\n(Drag & Drop)"     as DragDrop
+}
+
+' ══════════════════════════════════════════════════════════════════
+' ACTEURS — DROITE : système externe
+' ══════════════════════════════════════════════════════════════════
+
+actor "Claude AI\n(Anthropic)" as Claude <<system>>
+
+' ══════════════════════════════════════════════════════════════════
+' VISITEUR — accès public uniquement
+' ══════════════════════════════════════════════════════════════════
+
+Visitor --> Register
+Visitor --> Login
+
+' ══════════════════════════════════════════════════════════════════
+' UTILISATEUR — accès conditionné à l'authentification
+' ══════════════════════════════════════════════════════════════════
+
+User --> Logout
+User --> CreateSession
+User --> ManageSession
+User --> SwitchSession
+User --> Chat
+User --> ImportCSV
+User --> RowCRUD
+User --> ViewCanvas
+User --> DragDrop
+
+' ══════════════════════════════════════════════════════════════════
+' AUTHENTIFICATION REQUISE
+' ══════════════════════════════════════════════════════════════════
+
+Logout        ..> CheckAuth : <<include>>
+CreateSession ..> CheckAuth : <<include>>
+Chat          ..> CheckAuth : <<include>>
+ImportCSV     ..> CheckAuth : <<include>>
+ViewCanvas    ..> CheckAuth : <<include>>
+
+note bottom of CheckAuth
+  Toutes les actions de l'Utilisateur
+  nécessitent une authentification valide
+end note
+
+' ══════════════════════════════════════════════════════════════════
+' CHAT — sous-cas selon l'intention de l'utilisateur
+' ══════════════════════════════════════════════════════════════════
+
+Chat ..> ManageTable : <<include>>
+Chat ..> Analyze     : <<extend>>
+Chat ..> Seed        : <<extend>>
+
+' ══════════════════════════════════════════════════════════════════
+' SYSTÈME EXTERNE — Claude AI
+' ══════════════════════════════════════════════════════════════════
+
+ManageTable --> Claude
+Analyze     --> Claude
+ImportCSV   --> Claude
+
+@enduml
