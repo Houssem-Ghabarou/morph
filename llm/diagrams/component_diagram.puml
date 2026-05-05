@@ -1,0 +1,185 @@
+@startuml component_diagram
+title Diagramme de Composants — Architecture Morph
+
+skinparam backgroundColor #FAFAFA
+skinparam componentBackgroundColor #EDE7F6
+skinparam componentBorderColor #7C3AED
+skinparam componentArrowColor #5B21B6
+skinparam packageBackgroundColor #F3E8FF
+skinparam packageBorderColor #7C3AED
+skinparam NoteBackgroundColor #FFF9C4
+skinparam NoteBorderColor #FBC02D
+skinparam interfaceBackgroundColor #FFFFFF
+skinparam interfaceBorderColor #7C3AED
+skinparam arrowColor #5B21B6
+
+' ══════════════════════════════════════════════════════════════════════════════
+' CLIENT LAYER
+' ══════════════════════════════════════════════════════════════════════════════
+package "Client — Navigateur Web" #E8EAF6 {
+
+  package "Next.js App Router (Port 3000)" #EDE7F6 {
+
+    component [Middleware\n(middleware.ts)] as MW <<Next.js Middleware>>
+    component [Page d'accueil\n(app/page.tsx)] as HomePage
+    component [Sign In Page\n(app/signin/page.tsx)] as SignIn
+    component [Sign Up Page\n(app/signup/page.tsx)] as SignUp
+    component [Dashboard View\n(app/view/[id]/page.tsx)] as DashboardView
+
+    package "Composants React" {
+      component [Canvas] as Canvas
+      component [ChatPanel] as ChatPanel
+      component [Sidebar] as SidebarComp
+      component [TableCard] as TableCard
+      component [ImportModal] as ImportModal
+      component [AnalyticsPanel] as AnalyticsPanel
+    }
+
+    package "Hooks" {
+      component [useSession] as HookSession
+      component [useAuth] as HookAuth
+    }
+
+    component [API Client\n(lib/api.ts)] as APIClient
+  }
+}
+
+' ══════════════════════════════════════════════════════════════════════════════
+' SERVER LAYER
+' ══════════════════════════════════════════════════════════════════════════════
+package "Serveur — Node.js Backend (Port 3001)" #F3E8FF {
+
+  component [Fastify Server\n(index.ts)] as Fastify
+
+  package "Routes" {
+    component [Auth Routes\n(/api/auth/*)] as AuthRoutes
+    component [Session Routes\n(/api/sessions/*)] as SessionRoutes
+    component [Chat Route\n(/api/chat)] as ChatRouter
+    component [Data Routes\n(/api/data/*)] as DataRoutes
+    component [Schema Routes\n(/api/schema/*)] as SchemaRoutes
+    component [Import Routes\n(/api/import/*)] as ImportRoutes
+  }
+
+  package "Middlewares & Services" {
+    component [requireAuth\n(lib/requireAuth.ts)] as RequireAuth
+    component [JWT Service\n(lib/jwt.ts)] as JWTService
+    component [Claude Service\n(lib/claude.ts)] as ClaudeService
+    component [CSV Import\n(lib/csvImport.ts)] as CSVService
+    component [PostgreSQL Pool\n(lib/postgres.ts)] as PGPool
+    component [Migrations\n(lib/migrations.ts)] as Migrations
+  }
+}
+
+' ══════════════════════════════════════════════════════════════════════════════
+' EXTERNAL SERVICES
+' ══════════════════════════════════════════════════════════════════════════════
+package "Services Externes" #FFFDE7 {
+  component [Anthropic Claude API\n(claude-3-5-sonnet)] as AnthropicAPI <<external>>
+  component [PostgreSQL\nDatabase] as PostgresDB <<external>>
+  database "morph_users\nmorph_sessions\nmorph_messages\nmorph_session_tables\ns{id}_* (tables dynamiques)" as DBSchema
+}
+
+' ══════════════════════════════════════════════════════════════════════════════
+' INTERFACES
+' ══════════════════════════════════════════════════════════════════════════════
+interface "REST API\n(HTTP/JSON)" as RestAPI
+interface "Cookie\n(httpOnly JWT)" as CookieInterface
+interface "Anthropic\nMessages API" as AnthropicInterface
+interface "pg Pool\n(SQL)" as PGInterface
+
+' ══════════════════════════════════════════════════════════════════════════════
+' RELATIONS — Client side
+' ══════════════════════════════════════════════════════════════════════════════
+MW --> SignIn : redirect (no cookie)
+MW --> HomePage : pass through (cookie ok)
+HomePage --> Canvas
+HomePage --> ChatPanel
+HomePage --> SidebarComp
+HomePage --> ImportModal
+HomePage --> AnalyticsPanel
+Canvas --> TableCard
+HookSession --> APIClient
+HookAuth --> APIClient
+ChatPanel --> HookSession
+SidebarComp --> HookSession
+ImportModal --> APIClient
+SignIn --> APIClient
+SignUp --> APIClient
+
+' ══════════════════════════════════════════════════════════════════════════════
+' RELATIONS — Client ↔ Server
+' ══════════════════════════════════════════════════════════════════════════════
+APIClient --> RestAPI : HTTP requests\ncredentials: include
+RestAPI - Fastify
+
+APIClient --> CookieInterface : httpOnly cookie\nSet-Cookie / morph_token
+CookieInterface - Fastify
+
+' ══════════════════════════════════════════════════════════════════════════════
+' RELATIONS — Server internal
+' ══════════════════════════════════════════════════════════════════════════════
+Fastify --> AuthRoutes
+Fastify --> SessionRoutes
+Fastify --> ChatRouter
+Fastify --> DataRoutes
+Fastify --> SchemaRoutes
+Fastify --> ImportRoutes
+
+AuthRoutes --> RequireAuth
+SessionRoutes --> RequireAuth
+ChatRouter --> RequireAuth
+DataRoutes --> RequireAuth
+ImportRoutes --> RequireAuth
+
+RequireAuth --> JWTService
+AuthRoutes --> JWTService
+
+ChatRouter --> ClaudeService
+ImportRoutes --> CSVService
+CSVService --> ClaudeService
+
+AuthRoutes --> PGPool
+SessionRoutes --> PGPool
+ChatRouter --> PGPool
+DataRoutes --> PGPool
+SchemaRoutes --> PGPool
+ImportRoutes --> PGPool
+
+Fastify --> Migrations
+Migrations --> PGPool
+
+' ══════════════════════════════════════════════════════════════════════════════
+' RELATIONS — Server ↔ External
+' ══════════════════════════════════════════════════════════════════════════════
+ClaudeService --> AnthropicInterface
+AnthropicInterface - AnthropicAPI
+
+PGPool --> PGInterface
+PGInterface - PostgresDB
+PostgresDB --> DBSchema
+
+' ══════════════════════════════════════════════════════════════════════════════
+' NOTES
+' ══════════════════════════════════════════════════════════════════════════════
+note right of MW
+  Intercepte TOUTES les requêtes frontend.
+  Vérifie la présence du cookie morph_token.
+  Redirige vers /signin si absent.
+end note
+
+note right of ClaudeService
+  Construit un prompt structuré avec:
+  - Message utilisateur
+  - Contexte des tables existantes
+  - Préfixe de session (s{id}_)
+  Retourne SQL + action + métadonnées.
+end note
+
+note bottom of DBSchema
+  Les tables dynamiques (s3_clients, s3_orders...)
+  sont créées à la volée par le LLM.
+  Leur nom = s{sessionId}_{nomTable}
+  Elles sont isolées par utilisateur via user_id.
+end note
+
+@enduml

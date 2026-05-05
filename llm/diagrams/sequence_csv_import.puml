@@ -1,0 +1,121 @@
+@startuml sequence_csv_import
+title Diagramme de Séquence — Import de fichier CSV
+
+skinparam backgroundColor #FAFAFA
+skinparam sequenceArrowColor #7C3AED
+skinparam sequenceLifeLineBorderColor #7C3AED
+skinparam sequenceParticipantBackgroundColor #EDE7F6
+skinparam sequenceParticipantBorderColor #7C3AED
+skinparam sequenceActorBackgroundColor #F3E8FF
+skinparam sequenceActorBorderColor #7C3AED
+skinparam NoteBackgroundColor #FFF9C4
+skinparam NoteBorderColor #FBC02D
+
+actor "Utilisateur" as User
+participant "ImportModal\n(React)" as Modal
+participant "API Client\n(lib/api.ts)" as API
+participant "requireAuth\n(Fastify MW)" as AuthMW
+participant "Import Route\n(routes/import.ts)" as ImportRoute
+participant "csv-parse\n(Node.js)" as CSVParser
+participant "Claude Service" as Claude
+participant "Anthropic API" as AnthropicAPI
+participant "PostgreSQL" as DB
+participant "Canvas\n(React)" as Canvas
+
+' ─── User opens modal ─────────────────────────────────────────────────────────
+User -> Modal : Clique "Import CSV"
+Modal -> User : Affiche ImportModal\n(upload zone + description optionnelle)
+
+User -> Modal : Sélectionne "orders.csv"\n+ description: "customer orders with status"
+User -> Modal : Clique "Analyze"
+
+' ─── Step 1: Analyze CSV ──────────────────────────────────────────────────────
+Modal -> API : analyzeCSV(file, sessionId, description)
+
+note over API : Requête multipart/form-data\ncredentials: 'include'
+
+API -> ImportRoute : POST /api/import/analyze\n?sessionId=3&description=...\nbody: FormData {csv: File}
+
+ImportRoute -> AuthMW : requireAuth(req, reply)
+AuthMW --> ImportRoute : {userId, email} ✓
+
+ImportRoute -> CSVParser : parse(csvBuffer, {columns: true})
+CSVParser --> ImportRoute : headers[], rows[][]
+
+note right of CSVParser
+  Extrait les en-têtes CSV
+  et un échantillon des données
+  (max 5 premières lignes)
+  pour envoyer à Claude
+end note
+
+' ─── Detect existing tables ───────────────────────────────────────────────────
+ImportRoute -> DB : SELECT table_name\nFROM morph_session_tables\nWHERE session_id = $1
+DB --> ImportRoute : ["s3_menu_items", "s3_suppliers"]
+
+' ─── Claude detects schema or mapping ────────────────────────────────────────
+ImportRoute -> Claude : detectSchema(headers, sampleRows,\nexistingTables, description)
+Claude -> AnthropicAPI : Prompt:\n"Given these CSV headers: [order_id,\ncustomer, item_name, quantity, status, total]\nand these existing tables: menu_items, suppliers,\nSuggest column types OR map to existing table"
+
+AnthropicAPI --> Claude : {\n  flow: "new",\n  tableName: "orders",\n  columns: [\n    {csvHeader:"order_id",   pgName:"id",       pgType:"SERIAL"},\n    {csvHeader:"customer",   pgName:"customer", pgType:"TEXT"},\n    {csvHeader:"item_name",  pgName:"item_name",pgType:"TEXT"},\n    {csvHeader:"quantity",   pgName:"quantity", pgType:"INTEGER"},\n    {csvHeader:"status",     pgName:"status",   pgType:"TEXT"},\n    {csvHeader:"total",      pgName:"total",    pgType:"DECIMAL"}\n  ]\n}
+
+Claude --> ImportRoute : ImportAnalysis {flow, tableName, columns}
+
+ImportRoute --> API : HTTP 200 {\n  flow: "new",\n  tableName: "orders",\n  columns: [...]\n}
+
+API --> Modal : ImportAnalysis
+
+Modal -> Modal : Affiche le tableau de prévisualisation:\n- En-têtes CSV → colonnes PostgreSQL\n- Types suggérés (modifiables)\n- Aperçu des 5 premières lignes
+Modal -> User : Affiche prévisualisation de l'import
+
+' ─── Step 2: User confirms ────────────────────────────────────────────────────
+User -> Modal : Vérifie les types, ajuste si besoin
+User -> Modal : Clique "Import 247 rows"
+
+Modal -> API : confirmImport({\n  flow: "new",\n  sessionId: 3,\n  tableName: "orders",\n  columns: [...],\n  headers: [...],\n  rows: [[...],...]\n})
+
+API -> ImportRoute : POST /api/import/confirm\n{flow, sessionId, tableName, columns, rows}
+
+ImportRoute -> AuthMW : requireAuth(req, reply)
+AuthMW --> ImportRoute : {userId} ✓
+
+' ─── Create table and insert rows ────────────────────────────────────────────
+ImportRoute -> DB : BEGIN TRANSACTION
+
+ImportRoute -> DB : CREATE TABLE IF NOT EXISTS s3_orders (\n  id SERIAL PRIMARY KEY,\n  customer TEXT,\n  item_name TEXT,\n  quantity INTEGER,\n  status TEXT,\n  total DECIMAL(10,2)\n)
+DB --> ImportRoute : OK
+
+ImportRoute -> DB : INSERT INTO morph_session_tables\n(session_id, table_name, pos_x, pos_y)\nVALUES (3, 's3_orders', 80, 80)\nON CONFLICT DO NOTHING
+DB --> ImportRoute : OK
+
+loop Pour chaque batch de lignes CSV (bulk insert)
+  ImportRoute -> DB : INSERT INTO s3_orders\n(customer, item_name, quantity, status, total)\nVALUES ($1,$2,$3,$4,$5), ($6,$7,...), ...
+  DB --> ImportRoute : rows inserted
+end
+
+ImportRoute -> DB : COMMIT
+DB --> ImportRoute : OK
+
+ImportRoute --> API : HTTP 200 {\n  rowsImported: 247,\n  tableName: "s3_orders"\n}
+API --> Modal : ImportConfirmResult
+
+' ─── Frontend update ─────────────────────────────────────────────────────────
+Modal -> Modal : Ferme la modale
+Modal -> Canvas : onImportSuccess("s3_orders", 247)
+Canvas -> Canvas : Toast: "247 rows imported into orders"
+Canvas -> API : getSession(sessionId)
+API -> DB : SELECT session + tables + messages
+DB --> API : SessionDetail
+API --> Canvas : SessionDetail (avec s3_orders)
+
+Canvas -> Canvas : addOrUpdateTable("s3_orders")\nRend nouveau TableCard
+Canvas -> User : ✅ Table "orders" apparaît sur le canvas\navec 247 lignes
+
+note over User, Canvas
+  L'utilisateur peut maintenant
+  interroger les données importées
+  via le chat en langage naturel.
+  Ex: "Show me all pending orders"
+end note
+
+@enduml

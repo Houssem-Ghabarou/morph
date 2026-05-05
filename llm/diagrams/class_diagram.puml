@@ -1,0 +1,351 @@
+@startuml class_diagram
+title Diagramme de Classes — Morph (Domaine + Architecture)
+
+skinparam backgroundColor #FAFAFA
+skinparam classBackgroundColor #EDE7F6
+skinparam classBorderColor #7C3AED
+skinparam classArrowColor #5B21B6
+skinparam classFontColor #1A1A2E
+skinparam stereotypeCBackgroundColor #F3E8FF
+skinparam NoteBackgroundColor #FFF9C4
+skinparam NoteBorderColor #FBC02D
+skinparam packageStyle rectangle
+
+' ══════════════════════════════════════════════════════════════════════════════
+' DOMAIN MODEL (Database entities)
+' ══════════════════════════════════════════════════════════════════════════════
+package "Modèle du Domaine (PostgreSQL)" #EDE7F6 {
+
+  class User {
+    - id : INTEGER <<PK>>
+    - email : TEXT <<UNIQUE>>
+    - passwordHash : TEXT
+    - createdAt : TIMESTAMP
+    __
+    + register(email, password) : User
+    + login(email, password) : String <<JWT>>
+    + logout() : void
+  }
+
+  class Session {
+    - id : INTEGER <<PK>>
+    - userId : INTEGER <<FK>>
+    - name : TEXT
+    - createdAt : TIMESTAMP
+    - updatedAt : TIMESTAMP
+    __
+    + create(userId) : Session
+    + rename(name) : void
+    + delete() : void
+  }
+
+  class Message {
+    - id : INTEGER <<PK>>
+    - sessionId : INTEGER <<FK>>
+    - role : TEXT <<user|system>>
+    - text : TEXT
+    - warning : BOOLEAN
+    - createdAt : TIMESTAMP
+  }
+
+  class SessionTable {
+    - id : INTEGER <<PK>>
+    - sessionId : INTEGER <<FK>>
+    - tableName : TEXT
+    - posX : FLOAT
+    - posY : FLOAT
+    - columnSources : JSONB
+    - createdAt : TIMESTAMP
+    __
+    + updatePosition(x, y) : void
+    + setColumnSources(sources) : void
+  }
+
+  class DynamicTable <<runtime>> {
+    - name : TEXT
+    - note : "Format: s{sessionId}_{userTableName}"
+    __
+    + insertRow(data) : Row
+    + updateRow(id, data) : Row
+    + deleteRow(id) : void
+    + drop() : void
+    + getSchema() : Column[]
+    + fetchRows() : Row[]
+  }
+
+  class Column {
+    + name : STRING
+    + type : STRING <<pg type>>
+    + nullable : BOOLEAN
+  }
+
+  class Row <<Map>> {
+    + id : INTEGER
+    + [column] : any
+  }
+}
+
+' ══════════════════════════════════════════════════════════════════════════════
+' SERVICE LAYER (Backend — Fastify routes)
+' ══════════════════════════════════════════════════════════════════════════════
+package "Couche Service (Fastify Backend)" #F3E8FF {
+
+  class AuthService {
+    + register(email, password) : User
+    + login(email, password) : JwtToken
+    + logout() : void
+    + getMe(token) : User
+    - hashPassword(password) : String
+    - verifyPassword(plain, hash) : Boolean
+    - signJWT(payload) : String
+    - verifyJWT(token) : Payload
+  }
+
+  class SessionService {
+    + listSessions(userId) : Session[]
+    + createSession(userId) : Session
+    + getSessionDetail(id, userId) : SessionDetail
+    + renameSession(id, name, userId) : void
+    + deleteSession(id, userId) : void
+    + updateTablePosition(sessionId, table, x, y) : void
+    + getRelations(sessionId) : Relation[]
+  }
+
+  class ChatService {
+    + handleMessage(message, sessionId, userId) : ChatResponse
+    - buildSessionContext(sessionId) : String
+    - executeSQL(sql) : QueryResult
+    - createTableFromSchema(schema, sessionId) : void
+    - registerSessionTable(sessionId, tableName) : void
+    - updateSessionName(sessionId, name) : void
+  }
+
+  class ClaudeService {
+    + generateSQL(prompt, context) : SQLResult
+    + interpretQueryResult(rows, question) : String
+    + generateAnalysisQueries(tables, context) : Query[]
+    + generateSeedData(schema) : InsertSQL[]
+    + generateSuggestion(message) : String
+  }
+
+  class ImportService {
+    + analyzeCSV(file, sessionId, description) : ImportAnalysis
+    + confirmImport(payload) : ImportResult
+    - parseCSV(buffer) : String[][]
+    - detectSchema(headers, rows) : ColumnSuggestion[]
+  }
+
+  class RequireAuth <<middleware>> {
+    + check(request, reply) : JwtPayload | null
+  }
+}
+
+' ══════════════════════════════════════════════════════════════════════════════
+' FRONTEND LAYER (Next.js components)
+' ══════════════════════════════════════════════════════════════════════════════
+package "Couche Présentation (Next.js Frontend)" #E8EAF6 {
+
+  class AuthPage {
+    - email : String
+    - password : String
+    - error : String
+    - loading : Boolean
+    __
+    + handleSubmit() : void
+  }
+
+  class HomePage <<page.tsx>> {
+    - importOpen : Boolean
+    - prefillState : PrefillState
+    - analysisCards : AnalysisCard[]
+    - isAnalyzing : Boolean
+    __
+    + init() : void
+    + handleAnalyzeClick() : void
+    + handleImportSuccess() : void
+  }
+
+  class Canvas {
+    - tables : TableCardData[]
+    - visualCards : VisualCard[]
+    - relations : Relation[]
+    __
+    + onDragEnd(tableName, x, y) : void
+    + renderConnectors() : SVG
+  }
+
+  class ChatPanel {
+    - input : String
+    - messages : LocalMessage[]
+    __
+    + sendMessage(text) : void
+  }
+
+  class Sidebar {
+    - sessions : Session[]
+    - pinnedIds : Set<number>
+    __
+    + createSession() : void
+    + selectSession(id) : void
+    + deleteSession(id) : void
+    + logout() : void
+  }
+
+  class TableCard {
+    - tableName : String
+    - rows : Row[]
+    - schema : Column[]
+    __
+    + fetchData() : void
+    + onInsert(row) : void
+    + onDelete(id) : void
+  }
+
+  class ImportModal {
+    - file : File
+    - analysis : ImportAnalysis
+    __
+    + analyzeCSV() : void
+    + confirmImport() : void
+  }
+
+  class useSession <<hook>> {
+    + sessions : Session[]
+    + currentSessionId : number
+    + messages : LocalMessage[]
+    + tables : TableCardData[]
+    __
+    + loadSessions() : void
+    + createSession() : Promise<number>
+    + switchSession(id) : void
+    + sendMessage(text) : ChatResponse
+  }
+
+  class useAuth <<hook>> {
+    + user : AuthUser | null
+    + loading : Boolean
+    __
+    + logout() : void
+  }
+
+  class Middleware <<next middleware>> {
+    + run(request) : Response
+    - isPublicPath(path) : Boolean
+    - hasCookie(name) : Boolean
+  }
+}
+
+' ══════════════════════════════════════════════════════════════════════════════
+' DTO / Value Objects
+' ══════════════════════════════════════════════════════════════════════════════
+package "Objets de Transfert (DTO)" #F9FBE7 {
+
+  class ChatRequest {
+    + message : String
+    + sessionId : Integer
+  }
+
+  class ChatResponse {
+    + sql : String
+    + message : String
+    + action : ActionType
+    + schema : TableSchema
+    + rows : Row[]
+    + columns : String[]
+    + chartType : ChartType
+    + sessionName : String
+    + columnSources : Map<String, String>
+    + analyses : AnalysisCard[]
+  }
+
+  enum ActionType {
+    create
+    alter
+    insert
+    select
+    query
+    analyze
+    seed
+    prefill
+    create_many
+    unknown
+  }
+
+  class TableSchema {
+    + tableName : String
+    + columns : Column[]
+  }
+
+  class Relation {
+    + from : String
+    + to : String
+    + on : String
+  }
+
+  class JwtPayload {
+    + userId : Integer
+    + email : String
+  }
+}
+
+' ══════════════════════════════════════════════════════════════════════════════
+' ASSOCIATIONS
+' ══════════════════════════════════════════════════════════════════════════════
+
+' Domain associations
+User "1" *-- "0..*" Session : possède >
+Session "1" *-- "0..*" Message : contient >
+Session "1" *-- "0..*" SessionTable : référence >
+SessionTable "1" --> "1" DynamicTable : pointe vers >
+DynamicTable "1" *-- "1..*" Column : est composée de >
+DynamicTable "1" *-- "0..*" Row : stocke >
+
+' Service → Domain
+AuthService ..> User : gère
+SessionService ..> Session : gère
+ChatService ..> DynamicTable : crée / modifie
+ChatService ..> Message : persiste
+ChatService --> ClaudeService : délègue la génération SQL
+ImportService ..> DynamicTable : peuple
+ImportService --> ClaudeService : détection de schéma CSV
+
+' Service → Middleware
+AuthService <-- RequireAuth : valide le JWT
+ChatService <-- RequireAuth : protège
+SessionService <-- RequireAuth : protège
+
+' Frontend → Hooks
+HomePage --> useSession : utilise
+HomePage --> Canvas
+HomePage --> ChatPanel
+HomePage --> Sidebar
+Canvas --> TableCard : rend
+useSession --> ChatService : appelle via API
+useSession --> SessionService : appelle via API
+useAuth --> AuthService : appelle via API
+Middleware --> JwtPayload : extrait du cookie
+AuthPage --> AuthService : appelle
+
+' DTO flow
+ChatService ..> ChatRequest : reçoit
+ChatService ..> ChatResponse : retourne
+ClaudeService ..> TableSchema : retourne
+ClaudeService ..> ActionType : retourne
+
+note bottom of DynamicTable
+  Les tables dynamiques sont créées par le LLM.
+  Leur nom suit le format: s{sessionId}_{nom}.
+  Ex: s3_clients, s3_orders
+  Elles sont supprimées en cascade avec la session.
+end note
+
+note right of ClaudeService
+  Appelle l'API Anthropic (Claude 3.5/3.7).
+  Reçoit un prompt structuré avec:
+  - Le message utilisateur
+  - Le contexte des tables existantes
+  - Les schémas des colonnes
+  Retourne du SQL + un type d'action.
+end note
+
+@enduml

@@ -9,7 +9,11 @@
       "Bash(rm \"C:/Users/imaxe/OneDrive/Desktop/imaxeam/morph/frontend/package-lock.json\")",
       "Bash(npx tsc:*)",
       "Bash(npm run:*)",
-      "Bash(cat /c/Users/imxro/Desktop/Morph/backend/src/routes/*.ts)"
+      "Bash(cat /c/Users/imxro/Desktop/Morph/backend/src/routes/*.ts)",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\imxro\\\\Desktop\\\\Morph\" -Force)",
+      "Bash(Select-Object Name, PSIsContainer)",
+      "Bash(node -e \"const p = require\\('./morphfront/node_modules/next/package.json'\\); console.log\\(p.version\\)\")",
+      "Bash(node -e \"const p = require\\('./node_modules/next/package.json'\\); console.log\\(p.version\\)\")"
     ]
   }
 }

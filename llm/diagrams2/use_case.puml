@@ -1,0 +1,72 @@
+@startuml use_case
+title Diagramme des Cas d'Utilisation — Morph
+
+skinparam actorStyle awesome
+skinparam backgroundColor #FFFFFF
+skinparam usecase {
+  BackgroundColor #EDE7F6
+  BorderColor #7C3AED
+}
+skinparam actor {
+  BackgroundColor #F3E8FF
+  BorderColor #7C3AED
+}
+skinparam ArrowColor #5B21B6
+skinparam packageStyle rectangle
+skinparam packageBorderColor #C4B5FD
+
+actor "Visiteur" as Visitor
+actor "Utilisateur" as User
+actor "Claude AI" as Claude <<system>>
+
+package "Authentification" {
+  usecase "S'inscrire" as Register
+  usecase "Se connecter" as Login
+  usecase "Se déconnecter" as Logout
+}
+
+package "Gestion des Sessions" {
+  usecase "Créer une session" as CreateSession
+  usecase "Renommer / Supprimer" as ManageSession
+  usecase "Changer de session" as SwitchSession
+}
+
+package "Interaction LLM" {
+  usecase "Envoyer un message\n(langage naturel)" as Chat
+  usecase "Créer / Modifier\nune table" as ManageTable
+  usecase "Analyser les données" as Analyze
+  usecase "Générer des données\nexemples (Seed)" as Seed
+}
+
+package "Données & Import" {
+  usecase "Importer un CSV" as ImportCSV
+  usecase "Éditer les données\n(CRUD)" as RowCRUD
+}
+
+package "Visualisation" {
+  usecase "Voir le canvas\n(tables + graphiques)" as ViewCanvas
+  usecase "Déplacer les cartes\n(Drag & Drop)" as DragDrop
+}
+
+Visitor --> Register
+Visitor --> Login
+
+User --> Logout
+User --> CreateSession
+User --> ManageSession
+User --> SwitchSession
+User --> Chat
+User --> ImportCSV
+User --> RowCRUD
+User --> ViewCanvas
+User --> DragDrop
+
+Chat ..> ManageTable : <<include>>
+Chat ..> Analyze : <<extend>>
+Chat ..> Seed : <<extend>>
+
+ManageTable --> Claude
+Analyze --> Claude
+ImportCSV --> Claude
+
+@enduml

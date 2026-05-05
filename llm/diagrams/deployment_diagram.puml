@@ -1,0 +1,158 @@
+@startuml deployment_diagram
+title Diagramme de Déploiement — Infrastructure Morph
+
+skinparam backgroundColor #FAFAFA
+skinparam nodeBackgroundColor #EDE7F6
+skinparam nodeBorderColor #7C3AED
+skinparam componentBackgroundColor #F3E8FF
+skinparam componentBorderColor #7C3AED
+skinparam arrowColor #5B21B6
+skinparam NoteBackgroundColor #FFF9C4
+skinparam NoteBorderColor #FBC02D
+skinparam databaseBackgroundColor #E8F5E9
+skinparam databaseBorderColor #388E3C
+
+' ══════════════════════════════════════════════════════════════════════════════
+' USER DEVICE
+' ══════════════════════════════════════════════════════════════════════════════
+node "Poste Utilisateur\n(PC / Tablette)" as UserDevice <<device>> {
+  component [Navigateur Web\n(Chrome / Firefox / Edge)] as Browser
+  note right of Browser
+    - Exécute le bundle JavaScript
+    - Stocke le cookie httpOnly morph_token
+    - Envoie credentials: 'include'
+      sur chaque requête API
+  end note
+}
+
+' ══════════════════════════════════════════════════════════════════════════════
+' VERCEL — Frontend Hosting
+' ══════════════════════════════════════════════════════════════════════════════
+node "Vercel\n(CDN + Edge Network)" as Vercel <<cloud>> {
+
+  node "Edge Runtime\n(Next.js Middleware)" as EdgeRT {
+    component [middleware.ts\n(JWT cookie check)] as MWComponent
+  }
+
+  node "Next.js Serverless\nFunctions" as NextFunctions {
+    component [App Router\n(React Server Components)] as AppRouter
+    component [Static Assets\n(_next/static)" ] as StaticAssets
+  }
+
+  note right of Vercel
+    Déployé via: vercel --prod
+    URL: https://morph.vercel.app
+    - Build: next build
+    - Runtime: Node.js 18.x
+    - SSL: automatique (TLS 1.3)
+    - CDN: distribué mondialement
+  end note
+}
+
+' ══════════════════════════════════════════════════════════════════════════════
+' RAILWAY — Backend Hosting
+' ══════════════════════════════════════════════════════════════════════════════
+node "Railway\n(Backend Container)" as Railway <<cloud>> {
+
+  node "Container Docker\n(Node.js 22)" as DockerContainer {
+    component [Fastify Server\n(Port 3001)] as FastifyServer
+    component [Auth Routes\n/api/auth/*] as AuthRoutesNode
+    component [Session Routes\n/api/sessions/*] as SessionRoutesNode
+    component [Chat Route\n/api/chat] as ChatRouteNode
+    component [Data/Schema/Import\n/api/data|schema|import] as OtherRoutes
+    component [JWT + bcrypt\n(lib/jwt.ts, bcryptjs)] as JWTNode
+  }
+
+  note right of Railway
+    Déployé via: git push → Railway CI
+    URL: https://morph-api.railway.app
+    - Runtime: Node.js 22 LTS
+    - Build: npm run build (tsc)
+    - Start: node dist/index.js
+    - SSL: automatique
+    - Variables d'environnement:
+      DATABASE_URL, JWT_SECRET,
+      ANTHROPIC_API_KEY, PORT
+  end note
+}
+
+' ══════════════════════════════════════════════════════════════════════════════
+' RAILWAY — PostgreSQL Database
+' ══════════════════════════════════════════════════════════════════════════════
+node "Railway\n(PostgreSQL Service)" as RailwayDB <<cloud>> {
+
+  database "PostgreSQL 15\n(morph_db)" as PostgresInstance {
+    component [morph_users] as TUsers
+    component [morph_sessions] as TSessions
+    component [morph_messages] as TMessages
+    component [morph_session_tables] as TSessionTables
+    component [s{id}_* (tables dynamiques)] as TDynamic
+  }
+
+  note right of RailwayDB
+    Managed PostgreSQL sur Railway
+    - Connection pool: 10 connexions max
+    - SSL: requis (sslmode=require)
+    - Backups: quotidiens
+    - Données isolées par user_id
+  end note
+}
+
+' ══════════════════════════════════════════════════════════════════════════════
+' ANTHROPIC CLOUD
+' ══════════════════════════════════════════════════════════════════════════════
+node "Anthropic Cloud" as AnthropicCloud <<external cloud>> {
+  component [Claude 3.5 Sonnet\n(Messages API)] as ClaudeModel
+  note right of ClaudeModel
+    API Key: ANTHROPIC_API_KEY
+    Endpoint: api.anthropic.com
+    - Génération SQL
+    - Analyse de données
+    - Détection de schéma CSV
+    - Génération de données (seed)
+  end note
+}
+
+' ══════════════════════════════════════════════════════════════════════════════
+' COMMUNICATION LINKS
+' ══════════════════════════════════════════════════════════════════════════════
+
+Browser --> MWComponent : HTTPS GET /*\n(Cookie: morph_token)
+MWComponent --> AppRouter : NextResponse.next()\n(si authentifié)
+MWComponent --> AppRouter : redirect /signin\n(si non authentifié)
+
+AppRouter --> Browser : HTML + JS Bundle\n(React hydration)
+
+Browser --> FastifyServer : HTTPS REST API\nContent-Type: application/json\ncredentials: include\n(Cookie: morph_token)
+
+FastifyServer --> JWTNode : Vérifie cookie\nà chaque requête protégée
+FastifyServer --> PostgresInstance : TCP/SSL\n(pg pool, port 5432)
+FastifyServer --> ClaudeModel : HTTPS\nAnthropic SDK\n(POST /v1/messages)
+
+TUsers --> TSessions : FK user_id
+TSessions --> TMessages : FK session_id (CASCADE)
+TSessions --> TSessionTables : FK session_id (CASCADE)
+TSessionTables --> TDynamic : référence par nom
+
+' ══════════════════════════════════════════════════════════════════════════════
+' DEVELOPER WORKSTATION (local)
+' ══════════════════════════════════════════════════════════════════════════════
+node "Machine de Développement\n(Windows 11)" as DevMachine <<device>> {
+  component [Next.js Dev Server\n(npm run dev, :3000)] as NextDev
+  component [Fastify Dev Server\n(nodemon, :3001)] as FastifyDev
+  database "PostgreSQL Local\n(:5432)" as LocalDB
+  component [.env\n(secrets locaux)] as EnvFile
+}
+
+DevMachine ..> Vercel : git push + vercel deploy
+DevMachine ..> Railway : git push → auto-deploy CI/CD
+DevMachine ..> AnthropicCloud : HTTPS (développement local)
+
+note bottom of DevMachine
+  Développement local:
+  Frontend: http://localhost:3000
+  Backend: http://localhost:3001
+  CORS configuré pour localhost:3000 uniquement
+end note
+
+@enduml

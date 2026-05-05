@@ -1,0 +1,142 @@
+@startuml sequence_auth
+title Diagrammes de Séquence — Authentification (Inscription & Connexion)
+
+skinparam backgroundColor #FAFAFA
+skinparam sequenceArrowColor #7C3AED
+skinparam sequenceLifeLineBorderColor #7C3AED
+skinparam sequenceParticipantBackgroundColor #EDE7F6
+skinparam sequenceParticipantBorderColor #7C3AED
+skinparam sequenceActorBackgroundColor #F3E8FF
+skinparam sequenceActorBorderColor #7C3AED
+skinparam NoteBackgroundColor #FFF9C4
+skinparam NoteBorderColor #FBC02D
+skinparam sequenceGroupBorderColor #5B21B6
+skinparam sequenceGroupHeaderFontColor #5B21B6
+
+actor "Utilisateur" as User
+participant "Navigateur\n(Next.js)" as Browser
+participant "Next.js\nMiddleware" as MW
+participant "Page SignIn\n/ SignUp" as Page
+participant "API Client\n(lib/api.ts)" as API
+participant "Fastify\n(Auth Routes)" as Auth
+participant "PostgreSQL" as DB
+participant "JWT Service\n(lib/jwt.ts)" as JWT
+participant "bcrypt" as Bcrypt
+
+' ═══════════════════════════════════════════════════════════════════════════
+' SCENARIO 1 — INSCRIPTION (Register)
+' ═══════════════════════════════════════════════════════════════════════════
+== Scénario 1 : Inscription (Sign Up) ==
+
+User -> Browser : Navigue vers /signup
+Browser -> MW : GET /signup
+MW -> MW : Vérifie cookie morph_token
+note right of MW : Cookie absent → chemin public\n→ NextResponse.next()
+MW --> Browser : 200 OK (page autorisée)
+Browser -> Page : Rend SignUpPage
+
+User -> Page : Saisit email + password + confirm
+User -> Page : Clique "Create account"
+Page -> Page : Valide:\n- passwords match\n- length ≥ 6
+
+Page -> API : register(email, password)
+API -> Auth : POST /api/auth/register\n{email, password}\ncredentials: 'include'
+
+Auth -> Auth : Valide email + password\n(non vide, longueur ≥ 6)
+
+Auth -> DB : SELECT id FROM morph_users\nWHERE email = $1
+DB --> Auth : [] (aucun résultat)
+
+Auth -> Bcrypt : hash(password, salt=12)
+Bcrypt --> Auth : passwordHash
+
+Auth -> DB : INSERT INTO morph_users\n(email, password_hash)\nRETURNING id, email
+DB --> Auth : {id: 1, email: "..."}
+
+Auth -> JWT : signToken({userId: 1, email})
+JWT --> Auth : token (expire dans 7j)
+
+Auth --> API : HTTP 201\nSet-Cookie: morph_token=<jwt>; httpOnly\n{user: {id: 1, email}}
+API --> Page : {user}
+
+Page -> Browser : router.push('/')
+Browser -> MW : GET /
+MW -> MW : Détecte cookie morph_token ✓
+MW --> Browser : 200 OK
+Browser -> User : Affiche le workspace (canvas)
+
+' ═══════════════════════════════════════════════════════════════════════════
+' SCENARIO 2 — CONNEXION (Sign In)
+' ═══════════════════════════════════════════════════════════════════════════
+== Scénario 2 : Connexion (Sign In) ==
+
+User -> Browser : Navigue vers /signin
+Browser -> MW : GET /signin
+MW -> MW : Cookie absent → chemin public → next()
+MW --> Browser : 200 OK
+Browser -> Page : Rend SignInPage
+
+User -> Page : Saisit email + password
+User -> Page : Clique "Sign in"
+
+Page -> API : login(email, password)
+API -> Auth : POST /api/auth/login\n{email, password}\ncredentials: 'include'
+
+Auth -> DB : SELECT id, email, password_hash\nFROM morph_users\nWHERE email = $1
+DB --> Auth : {id, email, passwordHash}
+
+Auth -> Bcrypt : compare(password, passwordHash)
+Bcrypt --> Auth : true ✓
+
+Auth -> JWT : signToken({userId, email})
+JWT --> Auth : token
+
+Auth --> API : HTTP 200\nSet-Cookie: morph_token=<jwt>; httpOnly; SameSite=Lax\n{user: {id, email}}
+API --> Page : {user}
+
+Page -> Browser : router.push('/')
+Browser -> MW : GET /
+MW --> Browser : 200 OK (cookie présent)
+Browser -> User : Affiche le workspace
+
+' ═══════════════════════════════════════════════════════════════════════════
+' SCENARIO 3 — ERREUR D'AUTHENTIFICATION
+' ═══════════════════════════════════════════════════════════════════════════
+== Scénario 3 : Connexion échouée (mauvais mot de passe) ==
+
+User -> Page : Saisit email + mauvais password
+Page -> API : login(email, wrongPassword)
+API -> Auth : POST /api/auth/login
+
+Auth -> DB : SELECT ... WHERE email = $1
+DB --> Auth : {id, email, passwordHash}
+
+Auth -> Bcrypt : compare(wrongPassword, hash)
+Bcrypt --> Auth : false ✗
+
+Auth --> API : HTTP 401\n{error: "Invalid email or password"}
+API --> Page : throw Error("API 401: ...")
+Page -> Page : Affiche message d'erreur\n"Invalid email or password"
+Page --> User : ❌ Formulaire avec erreur
+
+' ═══════════════════════════════════════════════════════════════════════════
+' SCENARIO 4 — DÉCONNEXION (Sign Out)
+' ═══════════════════════════════════════════════════════════════════════════
+== Scénario 4 : Déconnexion (Sign Out) ==
+
+User -> Browser : Clique "Sign out" (Sidebar)
+Browser -> API : logout()
+API -> Auth : POST /api/auth/logout\ncredentials: 'include'
+Auth -> Auth : clearCookie('morph_token')
+Auth --> API : HTTP 200 {ok: true}\nSet-Cookie: morph_token=; Max-Age=0
+
+API --> Browser : {ok: true}
+Browser -> Browser : window.location.href = '/signin'
+Browser -> MW : GET /signin
+MW -> MW : Cookie effacé → chemin public → next()
+MW --> Browser : 200 OK
+Browser -> User : Affiche la page de connexion
+
+note over JWT : Algorithme : HS256\nExpiration : 7 jours\nSecret : JWT_SECRET (env var)\nStockage : httpOnly cookie\n(inaccessible depuis JS)
+
+@enduml

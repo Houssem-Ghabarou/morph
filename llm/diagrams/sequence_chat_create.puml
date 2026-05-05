@@ -1,0 +1,129 @@
+@startuml sequence_chat_create
+title Diagramme de Séquence — Envoi d'un message chat (Création de table)
+
+skinparam backgroundColor #FAFAFA
+skinparam sequenceArrowColor #7C3AED
+skinparam sequenceLifeLineBorderColor #7C3AED
+skinparam sequenceParticipantBackgroundColor #EDE7F6
+skinparam sequenceParticipantBorderColor #7C3AED
+skinparam sequenceActorBackgroundColor #F3E8FF
+skinparam sequenceActorBorderColor #7C3AED
+skinparam NoteBackgroundColor #FFF9C4
+skinparam NoteBorderColor #FBC02D
+
+actor "Utilisateur" as User
+participant "ChatPanel\n(React)" as ChatUI
+participant "useSession\n(hook)" as Hook
+participant "API Client\n(lib/api.ts)" as API
+participant "requireAuth\n(middleware)" as AuthMW
+participant "Chat Route\n(Fastify)" as ChatRoute
+participant "Claude Service\n(lib/claude.ts)" as Claude
+participant "Anthropic API\n(Claude 3.5)" as AnthropicAPI
+participant "PostgreSQL\n(pg pool)" as DB
+participant "Canvas\n(React)" as Canvas
+
+' ─── User sends a natural language prompt ─────────────────────────────────────
+User -> ChatUI : Tape : "I run a restaurant.\nI need to track my menu items\nwith prices and my suppliers."
+ChatUI -> Hook : sendMessage(text)
+
+Hook -> Hook : Ajoute userMsg à messages[]\nAjoute typingMsg (loading indicator)
+Hook -> API : sendChat(message, sessionId)
+API -> ChatRoute : POST /api/chat\n{message, sessionId}\ncredentials: include
+
+' ─── Auth check ───────────────────────────────────────────────────────────────
+ChatRoute -> AuthMW : requireAuth(req, reply)
+AuthMW -> AuthMW : Lit cookie morph_token\nverifyToken(token)
+AuthMW --> ChatRoute : JwtPayload {userId, email}
+
+' ─── Verify session ownership ─────────────────────────────────────────────────
+ChatRoute -> DB : SELECT id FROM morph_sessions\nWHERE id=$1 AND user_id=$2
+DB --> ChatRoute : [{id: 3}] ✓
+
+' ─── Build session context ────────────────────────────────────────────────────
+ChatRoute -> DB : SELECT table_name\nFROM morph_session_tables\nWHERE session_id = $1
+DB --> ChatRoute : [] (session vide)
+
+ChatRoute -> DB : SELECT table_name, column_name, data_type\nFROM information_schema.columns\nWHERE table_name = ANY($1)
+DB --> ChatRoute : [] (aucune table existante)
+
+note over ChatRoute : Contexte = "No tables yet.\nUser is starting fresh."
+
+' ─── Call Claude API ──────────────────────────────────────────────────────────
+ChatRoute -> Claude : generateSQL(userMessage, sessionContext)
+Claude -> AnthropicAPI : Messages API\n- System prompt (SQL expert)\n- User message\n- Session context
+
+note right of AnthropicAPI
+  Le prompt système inclut:
+  - Les tables existantes (schémas)
+  - Le préfixe de session (s3_)
+  - Les contraintes PostgreSQL
+  - Le format JSON attendu
+  en retour
+end note
+
+AnthropicAPI --> Claude : JSON response:\n{\n  action: "create_many",\n  tables: [\n    {name:"menu_items", columns:[...]},\n    {name:"suppliers", columns:[...]}\n  ],\n  sessionName: "Restaurant Manager"\n}
+
+' ─── Parse & execute SQL ──────────────────────────────────────────────────────
+Claude --> ChatRoute : ParsedSQL {action, tables, sessionName}
+
+loop Pour chaque table dans tables[]
+
+  ChatRoute -> ChatRoute : Préfixe: "s3_menu_items", "s3_suppliers"\nGénère CREATE TABLE SQL
+
+  ChatRoute -> DB : BEGIN TRANSACTION
+  ChatRoute -> DB : CREATE TABLE s3_menu_items (\n  id SERIAL PRIMARY KEY,\n  name TEXT NOT NULL,\n  price DECIMAL(10,2),\n  category TEXT\n)
+  DB --> ChatRoute : OK
+
+  ChatRoute -> DB : INSERT INTO morph_session_tables\n(session_id, table_name, pos_x, pos_y)\nVALUES (3, 's3_menu_items', 80, 80)
+  DB --> ChatRoute : OK
+
+  ChatRoute -> DB : COMMIT
+  DB --> ChatRoute : OK
+
+end
+
+' ─── Update session name ──────────────────────────────────────────────────────
+ChatRoute -> DB : UPDATE morph_sessions\nSET name='Restaurant Manager'\nWHERE id=3
+DB --> ChatRoute : OK
+
+' ─── Persist assistant message ────────────────────────────────────────────────
+ChatRoute -> DB : INSERT INTO morph_messages\n(session_id, role, text)\nVALUES (3, 'system', 'I created 2 tables...')
+DB --> ChatRoute : OK
+
+' ─── Build response with full schema ─────────────────────────────────────────
+ChatRoute -> DB : SELECT column_name, data_type, is_nullable\nFROM information_schema.columns\nWHERE table_name = 's3_menu_items'
+DB --> ChatRoute : [{name, price, category, ...}]
+
+ChatRoute --> API : HTTP 200 ChatResponse {\n  action: "create_many",\n  schemas: [...],\n  message: "Created menu_items and suppliers",\n  sessionName: "Restaurant Manager",\n  columnSources: {...}\n}
+
+' ─── Frontend update ──────────────────────────────────────────────────────────
+API --> Hook : ChatResponse
+
+Hook -> Hook : Retire typingMsg\nAjoute message assistant
+Hook -> Hook : Met à jour sessionName\ndans sessions[]
+Hook -> Hook : addOrUpdateTable("s3_menu_items", x, y)\naddOrUpdateTable("s3_suppliers", x+360, y)
+
+' ─── Fetch FK relations ───────────────────────────────────────────────────────
+Hook -> API : getSessionRelations(sessionId)
+API -> DB : (voir diagramme relations)
+DB --> API : {relations: [{from: "s3_orders", to: "s3_menu_items", on: "menu_item"}]}
+API --> Hook : {relations}
+Hook -> Hook : setRelations(fresh)
+
+Hook --> ChatUI : messages[] mis à jour
+Hook --> Canvas : tables[] mis à jour
+
+Canvas -> Canvas : Rend <TableCard> pour\nchaque table
+Canvas -> Canvas : Dessine les connecteurs FK\n(SVG overlay)
+
+Canvas --> User : ✅ 2 cartes apparaissent sur le canvas\navec les colonnes et les données
+
+note over User, Canvas
+  L'utilisateur voit instantanément
+  les tables "menu_items" et "suppliers"
+  positionnées sur le canvas interactif.
+  Il peut drag-and-drop les cartes,
+  cliquer pour voir/éditer les données.
+end note
+
+@enduml

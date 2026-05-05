@@ -1,0 +1,134 @@
+@startuml state_session
+title Diagramme d'États-Transitions — Cycle de vie d'une Session
+
+skinparam backgroundColor #FAFAFA
+skinparam state {
+  BackgroundColor #EDE7F6
+  BorderColor #7C3AED
+  FontColor #1A1A2E
+  ArrowColor #5B21B6
+  StartColor #7C3AED
+  EndColor #1A1A2E
+}
+skinparam NoteBackgroundColor #FFF9C4
+skinparam NoteBorderColor #FBC02D
+
+[*] --> NonAuthentifie : Application démarrée
+
+state "Non Authentifié" as NonAuthentifie {
+  [*] --> PageConnexion
+  PageConnexion : Affiche /signin ou /signup
+  PageConnexion --> PageConnexion : Erreur de saisie
+}
+
+NonAuthentifie --> SessionVide : Inscription réussie\nOU Connexion réussie\n[JWT cookie défini]
+
+state "Session Active" as SessionActive {
+
+  state "Session Vide" as SessionVide {
+    SessionVide : Aucune table créée\nCanvas = vide
+    SessionVide : name = "New Chat"
+  }
+
+  state "Session en Cours\n(Conversation active)" as SessionEnCours {
+
+    state "Traitement LLM" as TraitementLLM {
+      TraitementLLM : Claude génère le SQL
+      TraitementLLM : Attente réponse Anthropic API
+    }
+
+    state "Exécution SQL" as ExecutionSQL {
+      ExecutionSQL : pg pool exécute le SQL
+      ExecutionSQL : Table créée / modifiée / données insérées
+    }
+
+    state "Canvas Mis à Jour" as CanvasMisAJour {
+      CanvasMisAJour : TableCard rendu
+      CanvasMisAJour : Connecteurs FK dessinés
+      CanvasMisAJour : Session renommée
+    }
+
+    state "Erreur LLM" as ErreurLLM {
+      ErreurLLM : SQL invalide ou intention inconnue
+      ErreurLLM : Message d'erreur affiché
+    }
+
+    SessionVide --> TraitementLLM : Utilisateur envoie\nun message chat
+
+    TraitementLLM --> ExecutionSQL : SQL généré\n[action valide]
+    TraitementLLM --> ErreurLLM : Intention ambiguë\nOU SQL invalide
+
+    ExecutionSQL --> CanvasMisAJour : Succès PostgreSQL
+    ExecutionSQL --> ErreurLLM : Erreur PostgreSQL\n(ex: table existe déjà)
+
+    ErreurLLM --> TraitementLLM : Utilisateur reformule\nle message
+
+    CanvasMisAJour --> TraitementLLM : Nouvel\nmessage envoyé
+  }
+
+  state "Import CSV" as ImportCSV {
+    ImportCSV : Modal ouvert
+    state "Analyse en Cours" as AnalyseCSV
+    state "Prévisualisation" as Preview
+    state "Import Confirmé" as ImportDone
+    ImportCSV --> AnalyseCSV : Fichier CSV sélectionné
+    AnalyseCSV --> Preview : Claude retourne le schéma
+    Preview --> ImportDone : Utilisateur confirme
+    Preview --> ImportCSV : Utilisateur annule
+    ImportDone --> CanvasMisAJour : Table créée + rows insérés
+  }
+
+  state "Canvas Interactif" as CanvasInteractif {
+    CanvasInteractif : Cartes déplaçables (drag & drop)
+    CanvasInteractif : Édition inline des données
+    CanvasInteractif : Suppression de lignes
+  }
+
+  SessionVide --> ImportCSV : Clique "Import CSV"
+  SessionEnCours --> ImportCSV : Clique "Import CSV"
+  CanvasMisAJour --> CanvasInteractif : Rendu terminé
+  CanvasInteractif --> TraitementLLM : Nouveau message
+
+}
+
+state "Session Renommée" as SessionRenommee
+SessionEnCours --> SessionRenommee : LLM détecte le contexte\n(sessionName dans ChatResponse)
+SessionRenommee --> SessionEnCours : Nom mis à jour en DB\net dans la Sidebar
+
+state "Changement de Session" as ChangementSession
+SessionActive --> ChangementSession : Utilisateur sélectionne\nune autre session dans Sidebar
+ChangementSession --> SessionActive : Session précédente chargée\n(messages + tables restaurés)
+
+state "Session Supprimée" as SessionSupprimee {
+  SessionSupprimee : Tables dynamiques droppées (CASCADE)
+  SessionSupprimee : Messages supprimés
+  SessionSupprimee : morph_session_tables nettoyé
+}
+
+SessionActive --> SessionSupprimee : Utilisateur supprime\nla session
+SessionSupprimee --> SessionVide : Si d'autres sessions existent:\nswitchSession()\nSinon: canvas vide
+
+SessionActive --> NonAuthentifie : Déconnexion\n[Cookie effacé]
+NonAuthentifie --> [*] : Ferme le navigateur
+
+note right of TraitementLLM
+  Actions possibles (ActionType):
+  - create → CREATE TABLE
+  - alter → ALTER TABLE
+  - insert → INSERT INTO
+  - query → SELECT (résultat affiché)
+  - analyze → multiple SELECTs (graphiques)
+  - seed → INSERT batch de données factices
+  - create_many → plusieurs CREATE TABLE
+  - prefill → pré-remplit le formulaire
+  - unknown → message d'aide
+end note
+
+note left of ImportCSV
+  Le CSV passe par:
+  1. csv-parse (parsing)
+  2. Claude (détection de schéma)
+  3. pg pool (CREATE + INSERT)
+end note
+
+@enduml

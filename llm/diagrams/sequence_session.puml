@@ -1,0 +1,150 @@
+@startuml sequence_session
+title Diagramme de Séquence — Gestion des Sessions
+
+skinparam backgroundColor #FAFAFA
+skinparam sequenceArrowColor #7C3AED
+skinparam sequenceLifeLineBorderColor #7C3AED
+skinparam sequenceParticipantBackgroundColor #EDE7F6
+skinparam sequenceParticipantBorderColor #7C3AED
+skinparam sequenceActorBackgroundColor #F3E8FF
+skinparam sequenceActorBorderColor #7C3AED
+skinparam NoteBackgroundColor #FFF9C4
+skinparam NoteBorderColor #FBC02D
+
+actor "Utilisateur" as User
+participant "Sidebar\n(React)" as Sidebar
+participant "useSession\n(hook)" as Hook
+participant "API Client\n(lib/api.ts)" as API
+participant "requireAuth\n(Fastify MW)" as AuthMW
+participant "Session Route\n(Fastify)" as SessionRoute
+participant "PostgreSQL" as DB
+participant "Canvas\n(React)" as Canvas
+
+' ─── Scenario 1: App initialization ──────────────────────────────────────────
+== Scénario 1 : Initialisation — Chargement des sessions ==
+
+User -> Canvas : Visite l'application (/)
+Canvas -> Hook : init()
+Hook -> API : getSessions()
+API -> SessionRoute : GET /api/sessions\ncredentials: include
+SessionRoute -> AuthMW : requireAuth(req, reply)
+AuthMW -> AuthMW : Vérifie morph_token
+AuthMW --> SessionRoute : {userId: 5}
+
+SessionRoute -> DB : SELECT id, name, created_at, updated_at\nFROM morph_sessions\nWHERE user_id = 5\nORDER BY updated_at DESC
+DB --> SessionRoute : [{id:3, name:"Restaurant..."}, {id:1, name:"New Chat"}]
+SessionRoute --> API : {sessions: [...]}
+API --> Hook : {sessions}
+
+Hook -> Hook : Trie par updated_at DESC\nswitchSession(sessions[0].id)
+Hook -> API : getSession(3)
+API -> SessionRoute : GET /api/sessions/3
+
+SessionRoute -> DB : SELECT * FROM morph_sessions\nWHERE id=3 AND user_id=5
+DB --> SessionRoute : {id:3, name:"Restaurant Manager", ...}
+
+SessionRoute -> DB : SELECT id, role, text, warning\nFROM morph_messages\nWHERE session_id=3\nORDER BY created_at ASC
+DB --> SessionRoute : [{role:"user", text:"..."}, ...]
+
+SessionRoute -> DB : SELECT table_name, pos_x, pos_y, column_sources\nFROM morph_session_tables\nWHERE session_id=3
+DB --> SessionRoute : [{table_name:"s3_menu_items", pos_x:80, pos_y:80}, ...]
+
+SessionRoute --> API : SessionDetail {session, messages, sessionTables, relations}
+API --> Hook : SessionDetail
+
+Hook -> Hook : setMessages(messages)\nsetTables(sessionTables)\nsetRelations(relations)
+Hook --> Sidebar : sessions[] mis à jour
+Hook --> Canvas : tables[] mis à jour
+Canvas -> User : Affiche les sessions et le canvas restauré
+
+' ─── Scenario 2: Create new session ──────────────────────────────────────────
+== Scénario 2 : Créer une nouvelle session ==
+
+User -> Sidebar : Clique "+ New Project"
+Sidebar -> Sidebar : Affiche NewProjectModal (nom optionnel)
+User -> Sidebar : Confirme
+Sidebar -> Hook : createSession()
+Hook -> API : createSession()
+API -> SessionRoute : POST /api/sessions\ncredentials: include
+
+SessionRoute -> AuthMW : requireAuth(req, reply)
+AuthMW --> SessionRoute : {userId: 5}
+
+SessionRoute -> DB : INSERT INTO morph_sessions (name, user_id)\nVALUES ('New Chat', 5)\nRETURNING *
+DB --> SessionRoute : {id: 7, name:"New Chat", user_id:5, ...}
+SessionRoute --> API : HTTP 201 {id: 7, ...}
+API --> Hook : Session {id: 7}
+
+Hook -> Hook : setSessions([newSession, ...prev])\nsetCurrentSessionId(7)\nsetMessages([])\nsetTables([])
+Hook --> Sidebar : sessions[] mis à jour (session 7 en tête)
+Hook --> Canvas : canvas vidé
+Canvas -> User : Canvas vide, prêt pour une nouvelle conversation
+
+' ─── Scenario 3: Switch session ───────────────────────────────────────────────
+== Scénario 3 : Changer de session ==
+
+User -> Sidebar : Clique sur "Furniture Workshop"
+Sidebar -> Hook : switchSession(2)
+Hook -> Hook : setIsLoading(true)
+Hook -> API : getSession(2)
+API -> SessionRoute : GET /api/sessions/2
+
+SessionRoute -> DB : SELECT * FROM morph_sessions\nWHERE id=2 AND user_id=5
+DB --> SessionRoute : {id:2, name:"Furniture Workshop", ...}
+
+SessionRoute -> DB : SELECT messages FROM morph_messages\nWHERE session_id=2
+DB --> SessionRoute : [{role:"user",...}, {role:"system",...}]
+
+SessionRoute -> DB : SELECT table_name, pos_x, pos_y, column_sources\nFROM morph_session_tables WHERE session_id=2
+DB --> SessionRoute : [{table_name:"s2_inventory", pos_x:120, pos_y:80}]
+
+SessionRoute --> API : SessionDetail
+API --> Hook : SessionDetail
+
+Hook -> Hook : setCurrentSessionId(2)\nsetMessages(localMessages)\nsetTables(cardData)\nsetRelations(relations)\nsetIsLoading(false)
+Hook --> Canvas : tables[] = [{tableName:"s2_inventory", x:120, y:80}]
+Canvas -> User : Affiche le canvas de "Furniture Workshop"\navec les tables restaurées à leur position
+
+' ─── Scenario 4: Delete session ───────────────────────────────────────────────
+== Scénario 4 : Supprimer une session ==
+
+User -> Sidebar : Clique ···  →  "Delete"
+Sidebar -> Sidebar : Affiche confirmation popup
+User -> Sidebar : Confirme la suppression
+Sidebar -> Hook : deleteSession(3)
+Hook -> API : deleteSession(3)
+API -> SessionRoute : DELETE /api/sessions/3
+
+SessionRoute -> AuthMW : requireAuth(req, reply)
+AuthMW --> SessionRoute : {userId: 5}
+
+SessionRoute -> DB : BEGIN TRANSACTION
+
+SessionRoute -> DB : SELECT id FROM morph_sessions\nWHERE id=3 AND user_id=5
+DB --> SessionRoute : [{id:3}] ✓ (ownership vérifiée)
+
+SessionRoute -> DB : SELECT table_name\nFROM morph_session_tables\nWHERE session_id=3
+DB --> SessionRoute : ["s3_menu_items", "s3_suppliers", "s3_orders"]
+
+loop Pour chaque table de la session
+  SessionRoute -> DB : DROP TABLE IF EXISTS "s3_menu_items" CASCADE
+  DB --> SessionRoute : OK
+end
+
+SessionRoute -> DB : DELETE FROM morph_sessions WHERE id=3
+note right of DB : CASCADE → supprime aussi\nmorph_messages\net morph_session_tables
+DB --> SessionRoute : OK
+
+SessionRoute -> DB : COMMIT
+DB --> SessionRoute : OK
+
+SessionRoute --> API : HTTP 200 {ok: true}
+API --> Hook : OK
+
+Hook -> Hook : setSessions(prev.filter(s => s.id !== 3))\nSi currentSessionId === 3:\n  setCurrentSessionId(null)\n  setMessages([])\n  setTables([])
+
+Hook --> Sidebar : sessions[] sans session 3
+Hook --> Canvas : canvas vidé
+Canvas -> User : Session supprimée, canvas réinitialisé
+
+@enduml

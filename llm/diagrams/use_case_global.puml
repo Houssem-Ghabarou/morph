@@ -1,0 +1,136 @@
+@startuml use_case_global
+title Diagramme de Cas d'Utilisation Global — Morph
+
+skinparam actorStyle awesome
+skinparam packageStyle rectangle
+skinparam backgroundColor #FAFAFA
+skinparam usecase {
+  BackgroundColor #EDE7F6
+  BorderColor #7C3AED
+  FontColor #1A1A2E
+}
+skinparam actor {
+  BackgroundColor #F3E8FF
+  BorderColor #7C3AED
+}
+skinparam ArrowColor #7C3AED
+skinparam NoteBackgroundColor #FFF9C4
+skinparam NoteBorderColor #FBC02D
+
+' ─── Actors ────────────────────────────────────────────────────────────────────
+actor "Visiteur\n(non authentifié)" as Visitor
+actor "Utilisateur\n(authentifié)" as User
+actor "Claude AI\n(Anthropic)" as Claude <<external system>>
+actor "PostgreSQL\n(Base de données)" as DB <<external system>>
+
+' ─── Authentication Package ────────────────────────────────────────────────────
+package "Authentification" {
+  usecase "S'inscrire\n(Register)" as UC_Register
+  usecase "Se connecter\n(Sign In)" as UC_Login
+  usecase "Se déconnecter\n(Sign Out)" as UC_Logout
+  usecase "Vérifier le jeton\nJWT (Cookie)" as UC_JWT
+}
+
+' ─── Session Management Package ────────────────────────────────────────────────
+package "Gestion des Sessions" {
+  usecase "Créer une session\n(New Chat)" as UC_CreateSession
+  usecase "Renommer une session" as UC_RenameSession
+  usecase "Supprimer une session" as UC_DeleteSession
+  usecase "Changer de session\n(Switch)" as UC_SwitchSession
+  usecase "Lister les sessions" as UC_ListSessions
+}
+
+' ─── LLM Interaction Package ───────────────────────────────────────────────────
+package "Interaction LLM (Chat)" {
+  usecase "Envoyer un message\nen langage naturel" as UC_SendMessage
+  usecase "Créer une table\n(CREATE TABLE)" as UC_CreateTable
+  usecase "Modifier le schéma\n(ALTER TABLE)" as UC_AlterTable
+  usecase "Insérer des données\n(INSERT)" as UC_InsertData
+  usecase "Interroger les données\n(SELECT / Query)" as UC_QueryData
+  usecase "Analyser les données\n(Analytics)" as UC_Analyze
+  usecase "Générer des données\nd'exemple (Seed)" as UC_Seed
+  usecase "Générer du SQL\net interpréter l'intention" as UC_GenerateSQL
+}
+
+' ─── Data Import Package ───────────────────────────────────────────────────────
+package "Import de Données" {
+  usecase "Importer un fichier CSV" as UC_ImportCSV
+  usecase "Analyser la structure\ndu CSV (Suggest schema)" as UC_AnalyzeCSV
+  usecase "Confirmer l'import" as UC_ConfirmImport
+}
+
+' ─── Canvas & Visualization Package ───────────────────────────────────────────
+package "Canvas & Visualisation" {
+  usecase "Visualiser les tables\nsur le canvas" as UC_ViewCanvas
+  usecase "Déplacer une carte\n(Drag & Drop)" as UC_DragCard
+  usecase "Voir les données\nd'une table (TableCard)" as UC_ViewTableData
+  usecase "Voir les graphiques\n(Analytics Panel)" as UC_ViewCharts
+  usecase "Modifier / Supprimer\nune ligne (Row CRUD)" as UC_RowCRUD
+  usecase "Supprimer une table\n(Drop Table)" as UC_DropTable
+}
+
+' ─── Visitor relations ─────────────────────────────────────────────────────────
+Visitor --> UC_Register
+Visitor --> UC_Login
+
+' ─── User relations ────────────────────────────────────────────────────────────
+User --> UC_Logout
+User --> UC_CreateSession
+User --> UC_RenameSession
+User --> UC_DeleteSession
+User --> UC_SwitchSession
+User --> UC_ListSessions
+
+User --> UC_SendMessage
+User --> UC_ImportCSV
+User --> UC_ViewCanvas
+User --> UC_DragCard
+User --> UC_ViewTableData
+User --> UC_ViewCharts
+User --> UC_RowCRUD
+User --> UC_DropTable
+
+' ─── Include / Extend relations ────────────────────────────────────────────────
+UC_Login ..> UC_JWT : <<include>>
+UC_SendMessage ..> UC_JWT : <<include>>
+UC_CreateSession ..> UC_JWT : <<include>>
+
+UC_SendMessage ..> UC_CreateTable : <<extend>>\n[action=create]
+UC_SendMessage ..> UC_AlterTable : <<extend>>\n[action=alter]
+UC_SendMessage ..> UC_InsertData : <<extend>>\n[action=insert]
+UC_SendMessage ..> UC_QueryData : <<extend>>\n[action=query]
+UC_SendMessage ..> UC_Analyze : <<extend>>\n[action=analyze]
+UC_SendMessage ..> UC_Seed : <<extend>>\n[action=seed]
+
+UC_ImportCSV ..> UC_AnalyzeCSV : <<include>>
+UC_AnalyzeCSV ..> UC_ConfirmImport : <<extend>>\n[user validates]
+
+' ─── External system relations ─────────────────────────────────────────────────
+UC_GenerateSQL --> Claude
+UC_SendMessage ..> UC_GenerateSQL : <<include>>
+UC_AnalyzeCSV ..> UC_GenerateSQL : <<include>>
+
+UC_CreateTable --> DB
+UC_AlterTable --> DB
+UC_InsertData --> DB
+UC_QueryData --> DB
+UC_Analyze --> DB
+UC_Seed --> DB
+UC_ConfirmImport --> DB
+UC_DropTable --> DB
+
+note right of UC_GenerateSQL
+  Claude reçoit le message utilisateur,
+  le contexte du schéma existant, et
+  génère du SQL + un type d'action
+  (create / alter / insert / query / seed / analyze)
+end note
+
+note bottom of User
+  L'utilisateur est authentifié via
+  un cookie JWT httpOnly (7 jours).
+  Toutes ses sessions lui appartiennent
+  exclusivement.
+end note
+
+@enduml
