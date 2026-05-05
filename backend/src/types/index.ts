@@ -44,6 +44,8 @@ export interface ChatResponse {
   relations?: Relation[];
   analyses?: AnalysisCard[];
   seedResult?: { table: string; count: number }[];
+  /** Maps column_name → source_table (actual DB name) for smart dropdowns */
+  columnSources?: Record<string, string>;
 }
 
 export interface Session {
@@ -55,7 +57,7 @@ export interface Session {
 
 export interface SessionDetail extends Session {
   messages: Array<{ id: number; role: 'user' | 'system'; text: string; warning: boolean }>;
-  sessionTables: Array<{ table_name: string; pos_x: number; pos_y: number }>;
+  sessionTables: Array<{ table_name: string; pos_x: number; pos_y: number; column_sources?: Record<string, string> }>;
   relations: Relation[];
 }
 

@@ -2,8 +2,10 @@ import 'dotenv/config';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import multipart from '@fastify/multipart';
+import cookie from '@fastify/cookie';
 import { testConnection } from './lib/postgres';
 import { runMigrations } from './lib/migrations';
+import authRoutes from './routes/auth';
 import chatRoutes from './routes/chat';
 import schemaRoutes from './routes/schema';
 import dataRoutes from './routes/data';
@@ -23,11 +25,16 @@ async function bootstrap() {
   await fastify.register(cors, {
     origin: ['http://localhost:3000'],
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+    credentials: true,
   });
 
-  await fastify.register(multipart, { limits: { fileSize: 10 * 1024 * 1024 } }); // 10 MB max
+  await fastify.register(cookie);
+  await fastify.register(multipart, { limits: { fileSize: 10 * 1024 * 1024 } });
 
-  // Routes
+  // Auth routes (public — no middleware)
+  await fastify.register(authRoutes);
+
+  // Protected routes
   await fastify.register(sessionRoutes);
   await fastify.register(chatRoutes);
   await fastify.register(schemaRoutes);

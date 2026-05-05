@@ -1,6 +1,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { generateSQL, generateSuggestion, interpretQueryResult, generateAnalysisQueries, generateSeedData, generateContextualSeedData } from '../lib/claude';
 import { query, getTableSchema, runInTransaction } from '../lib/postgres';
+import { requireAuth } from '../lib/requireAuth';
 import { ChatRequest, ChatResponse, TableSchema, Relation, AnalysisCard } from '../types';
 
 const PG_DUPLICATE_TABLE = '42P07';
@@ -309,6 +310,9 @@ export default async function chatRoutes(fastify: FastifyInstance) {
   fastify.post<{ Body: ChatRequest }>(
     '/api/chat',
     async (request: FastifyRequest<{ Body: ChatRequest }>, reply: FastifyReply) => {
+      const user = await requireAuth(request, reply);
+      if (!user) return;
+
       const { message, sessionId } = request.body;
 
       if (!message || message.trim() === '') {
@@ -316,6 +320,15 @@ export default async function chatRoutes(fastify: FastifyInstance) {
       }
       if (!sessionId) {
         return reply.status(400).send({ error: 'sessionId is required' });
+      }
+
+      // Verify session belongs to user
+      const owned = await query(
+        `SELECT id FROM morph_sessions WHERE id = $1 AND user_id = $2`,
+        [sessionId, user.userId]
+      );
+      if (owned.rows.length === 0) {
+        return reply.status(403).send({ error: 'Forbidden' });
       }
 
       // Build session context so the LLM knows which tables exist and their schemas
@@ -803,6 +816,13 @@ export default async function chatRoutes(fastify: FastifyInstance) {
       // Sanitize common LLM SQL mistakes
       sql = sanitizeSQL(sql);
 
+      // Extract COLUMN_SOURCES annotation before further processing
+      let columnSources: Record<string, string> | undefined;
+      sql = sql.replace(/^COLUMN_SOURCES\|(.+)$/m, (_, json) => {
+        try { columnSources = JSON.parse(json); } catch { /* ignore malformed */ }
+        return '';
+      }).trim();
+
       // Detect multi-table response (statements separated by ---)
       const rawStatements = sql.split(/^\s*---\s*$/m).map((s) => s.trim()).filter(Boolean);
 
@@ -857,9 +877,10 @@ export default async function chatRoutes(fastify: FastifyInstance) {
           );
           for (const tName of tableNames) {
             await client.query(
-              `INSERT INTO morph_session_tables (session_id, table_name)
-               VALUES ($1, $2) ON CONFLICT (session_id, table_name) DO NOTHING`,
-              [sessionId, tName]
+              `INSERT INTO morph_session_tables (session_id, table_name, column_sources)
+               VALUES ($1, $2, $3)
+               ON CONFLICT (session_id, table_name) DO UPDATE SET column_sources = EXCLUDED.column_sources`,
+              [sessionId, tName, columnSources ? JSON.stringify(columnSources) : null]
             );
           }
           const nameResult = await client.query(
@@ -882,6 +903,7 @@ export default async function chatRoutes(fastify: FastifyInstance) {
           schemas,
           relations,
           ...(sessionName ? { sessionName } : {}),
+          ...(columnSources ? { columnSources } : {}),
         } satisfies ChatResponse);
       }
 
@@ -1143,10 +1165,10 @@ export default async function chatRoutes(fastify: FastifyInstance) {
         // Register table in session (for CREATE and ALTER)
         if ((action === 'create' || action === 'alter') && tableName) {
           await client.query(
-            `INSERT INTO morph_session_tables (session_id, table_name)
-             VALUES ($1, $2)
-             ON CONFLICT (session_id, table_name) DO NOTHING`,
-            [sessionId, tableName]
+            `INSERT INTO morph_session_tables (session_id, table_name, column_sources)
+             VALUES ($1, $2, $3)
+             ON CONFLICT (session_id, table_name) DO UPDATE SET column_sources = EXCLUDED.column_sources`,
+            [sessionId, tableName, columnSources ? JSON.stringify(columnSources) : null]
           );
         }
 
@@ -1176,6 +1198,7 @@ export default async function chatRoutes(fastify: FastifyInstance) {
         alreadyExisted,
         ...(sessionName ? { sessionName } : {}),
         ...(suggestion ? { suggestion } : {}),
+        ...(columnSources ? { columnSources } : {}),
       };
       return reply.send(response);
     }

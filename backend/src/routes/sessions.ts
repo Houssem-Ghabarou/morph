@@ -1,11 +1,11 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { query, runInTransaction } from '../lib/postgres';
+import { requireAuth } from '../lib/requireAuth';
 import { Relation } from '../types';
 
 async function getRelationsForTables(tableNames: string[]): Promise<Relation[]> {
   if (tableNames.length === 0) return [];
 
-  // Fetch all text columns for every session table
   const result = await query(
     `SELECT table_name, column_name
      FROM information_schema.columns
@@ -21,15 +21,11 @@ async function getRelationsForTables(tableNames: string[]): Promise<Relation[]> 
     const col: string  = row.column_name;
     const tbl: string  = row.table_name;
 
-    // Skip system columns
     if (col === 'id' || col === 'created_at' || col === 'updated_at') continue;
 
-    // Check if this column name matches another session table (with/without trailing 's')
     for (const other of tableNames) {
       if (other === tbl) continue;
-      // Strip the session prefix (s3_) from both for comparison
       const colNorm   = col.toLowerCase();
-      // Strip _ref suffix for matching (order_ref → order, user_ref → user)
       const colBase   = colNorm.endsWith('_ref') ? colNorm.slice(0, -4) : colNorm;
       const otherBase = other.replace(/^s\d+_/, '').toLowerCase();
 
@@ -44,39 +40,51 @@ async function getRelationsForTables(tableNames: string[]): Promise<Relation[]> 
 }
 
 export default async function sessionRoutes(fastify: FastifyInstance) {
-  // List all sessions
-  fastify.get('/api/sessions', async (_req: FastifyRequest, reply: FastifyReply) => {
+  // List sessions for the authenticated user
+  fastify.get('/api/sessions', async (req: FastifyRequest, reply: FastifyReply) => {
+    const user = await requireAuth(req, reply);
+    if (!user) return;
+
     const result = await query(
       `SELECT id, name, created_at, updated_at
        FROM morph_sessions
-       ORDER BY updated_at DESC`
+       WHERE user_id = $1
+       ORDER BY updated_at DESC`,
+      [user.userId]
     );
     return reply.send({ sessions: result.rows });
   });
 
-  // Create a new session
-  fastify.post('/api/sessions', async (_req: FastifyRequest, reply: FastifyReply) => {
+  // Create a new session for the authenticated user
+  fastify.post('/api/sessions', async (req: FastifyRequest, reply: FastifyReply) => {
+    const user = await requireAuth(req, reply);
+    if (!user) return;
+
     const result = await query(
-      `INSERT INTO morph_sessions (name) VALUES ('New Chat') RETURNING *`
+      `INSERT INTO morph_sessions (name, user_id) VALUES ('New Chat', $1) RETURNING *`,
+      [user.userId]
     );
     return reply.status(201).send(result.rows[0]);
   });
 
-  // Get full session detail (messages + table positions)
+  // Get full session detail (messages + table positions) — owned by user
   fastify.get<{ Params: { id: string } }>(
     '/api/sessions/:id',
     async (req: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+      const user = await requireAuth(req, reply);
+      if (!user) return;
+
       const sessionId = Number(req.params.id);
 
       const [sessionRes, messagesRes, tablesRes] = await Promise.all([
-        query(`SELECT * FROM morph_sessions WHERE id = $1`, [sessionId]),
+        query(`SELECT * FROM morph_sessions WHERE id = $1 AND user_id = $2`, [sessionId, user.userId]),
         query(
           `SELECT id, role, text, warning FROM morph_messages
            WHERE session_id = $1 ORDER BY created_at ASC`,
           [sessionId]
         ),
         query(
-          `SELECT table_name, pos_x, pos_y FROM morph_session_tables
+          `SELECT table_name, pos_x, pos_y, column_sources FROM morph_session_tables
            WHERE session_id = $1 ORDER BY created_at ASC`,
           [sessionId]
         ),
@@ -98,25 +106,35 @@ export default async function sessionRoutes(fastify: FastifyInstance) {
     }
   );
 
-  // Delete a session — drops all user tables that belong to it
+  // Delete a session — only if owned by user
   fastify.delete<{ Params: { id: string } }>(
     '/api/sessions/:id',
     async (req: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+      const user = await requireAuth(req, reply);
+      if (!user) return;
+
       const sessionId = Number(req.params.id);
 
       await runInTransaction(async (client) => {
-        // Get tables owned by this session
+        // Verify ownership
+        const owned = await client.query(
+          `SELECT id FROM morph_sessions WHERE id = $1 AND user_id = $2`,
+          [sessionId, user.userId]
+        );
+        if (owned.rows.length === 0) {
+          reply.status(404).send({ error: 'Session not found' });
+          return;
+        }
+
         const tables = await client.query(
           `SELECT table_name FROM morph_session_tables WHERE session_id = $1`,
           [sessionId]
         );
 
-        // Drop each user table
         for (const row of tables.rows) {
           await client.query(`DROP TABLE IF EXISTS "${row.table_name}" CASCADE`);
         }
 
-        // Delete session — cascades to morph_messages + morph_session_tables
         await client.query(`DELETE FROM morph_sessions WHERE id = $1`, [sessionId]);
       });
 
@@ -124,11 +142,20 @@ export default async function sessionRoutes(fastify: FastifyInstance) {
     }
   );
 
-  // Get FK relations for all tables in a session
+  // Get FK relations — user must own session
   fastify.get<{ Params: { id: string } }>(
     '/api/sessions/:id/relations',
     async (req: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+      const user = await requireAuth(req, reply);
+      if (!user) return;
+
       const sessionId = Number(req.params.id);
+      const owned = await query(
+        `SELECT id FROM morph_sessions WHERE id = $1 AND user_id = $2`,
+        [sessionId, user.userId]
+      );
+      if (owned.rows.length === 0) return reply.status(404).send({ error: 'Session not found' });
+
       const tablesRes = await query(
         `SELECT table_name FROM morph_session_tables WHERE session_id = $1`,
         [sessionId]
@@ -139,19 +166,26 @@ export default async function sessionRoutes(fastify: FastifyInstance) {
     }
   );
 
-  // Rename a session
+  // Rename a session — user must own it
   fastify.patch<{ Params: { id: string }; Body: { name: string } }>(
     '/api/sessions/:id/name',
     async (req: FastifyRequest<{ Params: { id: string }; Body: { name: string } }>, reply: FastifyReply) => {
+      const user = await requireAuth(req, reply);
+      if (!user) return;
+
       const sessionId = Number(req.params.id);
       const { name } = req.body;
       if (!name?.trim()) return reply.status(400).send({ error: 'Name is required' });
-      await query(`UPDATE morph_sessions SET name = $1 WHERE id = $2`, [name.trim(), sessionId]);
+
+      await query(
+        `UPDATE morph_sessions SET name = $1 WHERE id = $2 AND user_id = $3`,
+        [name.trim(), sessionId, user.userId]
+      );
       return reply.send({ ok: true });
     }
   );
 
-  // Update card position (called on drag end)
+  // Update card position
   fastify.patch<{
     Params: { id: string; tableName: string };
     Body: { x: number; y: number };
@@ -161,9 +195,19 @@ export default async function sessionRoutes(fastify: FastifyInstance) {
       req: FastifyRequest<{ Params: { id: string; tableName: string }; Body: { x: number; y: number } }>,
       reply: FastifyReply
     ) => {
+      const user = await requireAuth(req, reply);
+      if (!user) return;
+
       const sessionId = Number(req.params.id);
       const { tableName } = req.params;
       const { x, y } = req.body;
+
+      // Verify ownership
+      const owned = await query(
+        `SELECT id FROM morph_sessions WHERE id = $1 AND user_id = $2`,
+        [sessionId, user.userId]
+      );
+      if (owned.rows.length === 0) return reply.status(403).send({ error: 'Forbidden' });
 
       await query(
         `INSERT INTO morph_session_tables (session_id, table_name, pos_x, pos_y)

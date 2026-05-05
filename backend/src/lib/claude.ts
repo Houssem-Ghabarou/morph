@@ -193,7 +193,17 @@ PERSON / NAME FILTER RULE (critical for accuracy):
 - For table joins, use exact case-insensitive match (no wildcards):
     JOIN clients ON meals.client ILIKE clients.name
 - For comparisons between people:
-  Return rows for ALL compared entities`;
+  Return rows for ALL compared entities
+
+COLUMN_SOURCES RULE (for CREATE intent only):
+- After the CREATE TABLE SQL, if one or more columns in the new table should have their values sourced from an existing session table's data (not a formal FK — just that the user will pick from those values), emit a COLUMN_SOURCES annotation on its own line:
+  COLUMN_SOURCES|{"column_name":"exact_existing_table_name"}
+- Only emit this when the column is clearly a picker for values already stored elsewhere.
+- Example: user creates a "progress tracker" with an "exercise" column, and the session already has a "training" table with an "exercise" column → emit:
+  COLUMN_SOURCES|{"exercise":"s5_training"}
+- Use the EXACT table name as it appears in the session context (e.g. "s5_weekly_schedule").
+- Multiple columns: {"exercise":"s5_training","muscle_group":"s5_training"}
+- If no column qualifies, do NOT emit COLUMN_SOURCES at all.`;
 
 type Provider = 'groq' | 'claude';
 
