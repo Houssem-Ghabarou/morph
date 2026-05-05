@@ -13,7 +13,9 @@
       "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\imxro\\\\Desktop\\\\Morph\" -Force)",
       "Bash(Select-Object Name, PSIsContainer)",
       "Bash(node -e \"const p = require\\('./morphfront/node_modules/next/package.json'\\); console.log\\(p.version\\)\")",
-      "Bash(node -e \"const p = require\\('./node_modules/next/package.json'\\); console.log\\(p.version\\)\")"
+      "Bash(node -e \"const p = require\\('./node_modules/next/package.json'\\); console.log\\(p.version\\)\")",
+      "Bash(grep -rho '\\\\b\\(?:bg|text|border|outline|ring|shadow|divide|stroke|fill\\)-\\\\[#[0-9a-fA-F]{3,8}\\\\]' components/ app/)",
+      "Bash(grep -rho '\\\\[#[0-9a-fA-F]\\\\{3,8\\\\}\\\\]' components/ app/)"
     ]
   }
 }

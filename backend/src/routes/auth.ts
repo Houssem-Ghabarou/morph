@@ -78,6 +78,43 @@ export default async function authRoutes(fastify: FastifyInstance) {
     return reply.send({ ok: true });
   });
 
+  fastify.patch<{ Body: { currentPassword: string; newPassword: string } }>(
+    '/api/auth/password',
+    async (req: FastifyRequest<{ Body: { currentPassword: string; newPassword: string } }>, reply: FastifyReply) => {
+      const token = req.cookies?.[COOKIE_NAME];
+      if (!token) return reply.status(401).send({ error: 'Not authenticated' });
+
+      let payload;
+      try {
+        payload = verifyToken(token);
+      } catch {
+        return reply.status(401).send({ error: 'Invalid session' });
+      }
+
+      const { currentPassword, newPassword } = req.body ?? {};
+      if (!currentPassword || !newPassword) {
+        return reply.status(400).send({ error: 'Current and new passwords are required' });
+      }
+      if (newPassword.length < 6) {
+        return reply.status(400).send({ error: 'New password must be at least 6 characters' });
+      }
+
+      const result = await query(
+        `SELECT password_hash FROM morph_users WHERE id = $1`,
+        [payload.userId]
+      );
+      if (result.rows.length === 0) return reply.status(404).send({ error: 'User not found' });
+
+      const valid = await bcrypt.compare(currentPassword, result.rows[0].password_hash);
+      if (!valid) return reply.status(401).send({ error: 'Current password is incorrect' });
+
+      const newHash = await bcrypt.hash(newPassword, 12);
+      await query(`UPDATE morph_users SET password_hash = $1 WHERE id = $2`, [newHash, payload.userId]);
+
+      return reply.send({ ok: true });
+    }
+  );
+
   fastify.get('/api/auth/me', async (req: FastifyRequest, reply: FastifyReply) => {
     const token = req.cookies?.[COOKIE_NAME];
     if (!token) return reply.status(401).send({ error: 'Not authenticated' });
