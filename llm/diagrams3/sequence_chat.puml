@@ -1,0 +1,44 @@
+@startuml sequence_chat
+title Séquence — Message Chat (Création de table)
+
+skinparam backgroundColor #FFFFFF
+skinparam sequenceArrowColor #7C3AED
+skinparam sequenceLifeLineBorderColor #7C3AED
+skinparam sequenceParticipantBackgroundColor #EDE7F6
+skinparam sequenceParticipantBorderColor #7C3AED
+skinparam sequenceActorBackgroundColor #F3E8FF
+skinparam sequenceActorBorderColor #7C3AED
+skinparam NoteBackgroundColor #FFF9C4
+skinparam NoteBorderColor #FBC02D
+
+actor Utilisateur as User
+participant "Frontend\n(Next.js)" as Front
+participant "Backend\n(Fastify)" as Back
+participant "Claude AI\n(Anthropic)" as Claude
+database "PostgreSQL" as DB
+
+User -> Front : "Je gère un restaurant,\ncrée mes tables"
+Front -> Back : POST /api/chat\n{message, sessionId}
+
+Back -> Back : Vérifie le JWT (cookie)
+Back -> DB : Récupère les tables\nexistantes de la session
+DB --> Back : Contexte de la session
+
+Back -> Claude : Message + contexte\ndes tables existantes
+note right of Claude
+  Génère du SQL adapté
+  au contexte de l'utilisateur
+end note
+Claude --> Back : SQL + type d'action\n(create_many)
+
+Back -> DB : CREATE TABLE s3_menu_items\nCREATE TABLE s3_suppliers
+DB --> Back : Tables créées ✓
+
+Back -> DB : Enregistre les tables\ndans morph_session_tables
+Back -> DB : Sauvegarde le message
+Back --> Front : Schémas + message de réponse
+
+Front -> Front : Affiche les cartes\nsur le canvas
+Front --> User : ✅ Tables visibles\nsur le canvas
+
+@enduml

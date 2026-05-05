@@ -1,0 +1,54 @@
+@startuml deployment_diagram
+title Diagramme de Déploiement — Infrastructure Morph
+
+skinparam backgroundColor #FFFFFF
+skinparam nodeBackgroundColor #EDE7F6
+skinparam nodeBorderColor #7C3AED
+skinparam componentBackgroundColor #F3E8FF
+skinparam componentBorderColor #7C3AED
+skinparam arrowColor #5B21B6
+skinparam roundCorner 8
+skinparam databaseBackgroundColor #E8F5E9
+skinparam databaseBorderColor #388E3C
+
+node "Navigateur\n(Client)" as Browser {
+  component [Application React\n(Next.js)] as ReactApp
+}
+
+node "Vercel\n(Frontend)" as Vercel {
+  component [Next.js\n(SSR + Middleware)] as NextApp
+}
+
+node "Railway\n(Backend)" as Railway {
+  component [Fastify\n(API REST)] as FastifyApp
+}
+
+node "Railway\n(Base de données)" as RailwayDB {
+  database "PostgreSQL" as Postgres
+}
+
+node "Anthropic Cloud" as Anthropic {
+  component [Claude API] as ClaudeAPI
+}
+
+Browser --> Vercel : HTTPS
+Vercel --> Railway : HTTPS / REST API\n(Cookie JWT)
+Railway --> RailwayDB : TCP/SSL
+Railway --> Anthropic : HTTPS\n(génération SQL)
+
+note right of Vercel
+  next build
+  URL: morph.vercel.app
+end note
+
+note right of Railway
+  node dist/index.js
+  URL: morph-api.railway.app
+end note
+
+note right of Anthropic
+  ANTHROPIC_API_KEY
+  claude-3-5-sonnet
+end note
+
+@enduml

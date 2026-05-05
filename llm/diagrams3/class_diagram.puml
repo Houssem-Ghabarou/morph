@@ -1,0 +1,69 @@
+@startuml class_diagram
+title Diagramme de Classes — Modèle du Domaine Morph
+
+skinparam backgroundColor #FFFFFF
+skinparam classBackgroundColor #EDE7F6
+skinparam classBorderColor #7C3AED
+skinparam classArrowColor #5B21B6
+skinparam classFontColor #1A1A2E
+skinparam classAttributeIconSize 0
+skinparam roundCorner 8
+
+class User {
+  + id : INTEGER
+  + email : TEXT
+  + passwordHash : TEXT
+  + createdAt : TIMESTAMP
+}
+
+class Session {
+  + id : INTEGER
+  + name : TEXT
+  + createdAt : TIMESTAMP
+  + updatedAt : TIMESTAMP
+}
+
+class Message {
+  + id : INTEGER
+  + role : TEXT
+  + text : TEXT
+  + warning : BOOLEAN
+  + createdAt : TIMESTAMP
+}
+
+class SessionTable {
+  + tableName : TEXT
+  + posX : FLOAT
+  + posY : FLOAT
+  + columnSources : JSONB
+}
+
+class DynamicTable {
+  + name : TEXT
+  + note : "s{sessionId}_{tableName}"
+}
+
+class Column {
+  + name : TEXT
+  + type : TEXT
+  + nullable : BOOLEAN
+}
+
+User "1" --o "0..*" Session : possède
+Session "1" --* "0..*" Message : contient
+Session "1" --* "0..*" SessionTable : référence
+SessionTable "1" --> "1" DynamicTable : pointe vers
+DynamicTable "1" --* "1..*" Column : composée de
+
+note bottom of DynamicTable
+  Créée à la volée par le LLM.
+  Isolée par session (préfixe s{id}_).
+end note
+
+note right of Session
+  Chaque session appartient
+  à un seul utilisateur.
+  Ses tables sont privées.
+end note
+
+@enduml

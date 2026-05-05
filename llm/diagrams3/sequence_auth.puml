@@ -1,0 +1,35 @@
+@startuml sequence_auth
+title Séquence — Connexion (Sign In)
+
+skinparam backgroundColor #FFFFFF
+skinparam sequenceArrowColor #7C3AED
+skinparam sequenceLifeLineBorderColor #7C3AED
+skinparam sequenceParticipantBackgroundColor #EDE7F6
+skinparam sequenceParticipantBorderColor #7C3AED
+skinparam sequenceActorBackgroundColor #F3E8FF
+skinparam sequenceActorBorderColor #7C3AED
+skinparam NoteBackgroundColor #FFF9C4
+skinparam NoteBorderColor #FBC02D
+
+actor Utilisateur as User
+participant "Frontend\n(Next.js)" as Front
+participant "Backend\n(Fastify)" as Back
+database "PostgreSQL" as DB
+
+User -> Front : Email + mot de passe
+Front -> Back : POST /api/auth/login
+Back -> DB : Cherche l'utilisateur par email
+DB --> Back : Utilisateur trouvé
+Back -> Back : Vérifie le mot de passe\n(bcrypt)
+
+alt Mot de passe correct
+  Back -> Back : Génère un token JWT
+  Back --> Front : Cookie httpOnly (morph_token)
+  Front -> Front : Redirige vers /
+  Front --> User : ✅ Workspace affiché
+else Mot de passe incorrect
+  Back --> Front : 401 Unauthorized
+  Front --> User : ❌ Message d'erreur
+end
+
+@enduml
