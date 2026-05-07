@@ -27,13 +27,31 @@ async function tableExists(tableName: string): Promise<boolean> {
 }
 
 export default async function dataRoutes(fastify: FastifyInstance) {
-  fastify.get<{ Params: { tableName: string } }>(
+  fastify.get<{ Params: { tableName: string }; Querystring: { page?: string; limit?: string } }>(
     '/api/data/:tableName',
-    async (request: FastifyRequest<{ Params: { tableName: string } }>, reply: FastifyReply) => {
+    async (
+      request: FastifyRequest<{ Params: { tableName: string }; Querystring: { page?: string; limit?: string } }>,
+      reply: FastifyReply
+    ) => {
       const { tableName } = request.params;
       if (!(await tableExists(tableName))) {
         return reply.status(404).send({ error: `Table "${tableName}" not found` });
       }
+
+      const limit = Math.min(parseInt(request.query.limit ?? '0', 10) || 0, 10000);
+      const page = Math.max(parseInt(request.query.page ?? '1', 10), 1);
+
+      if (limit > 0) {
+        const offset = (page - 1) * limit;
+        const countRes = await query(`SELECT COUNT(*) AS total FROM "${tableName}"`);
+        const total = parseInt(countRes.rows[0].total, 10);
+        const result = await query(
+          `SELECT * FROM "${tableName}" ORDER BY created_at DESC LIMIT $1 OFFSET $2`,
+          [limit, offset]
+        );
+        return reply.send({ rows: result.rows, total, page, limit, pages: Math.ceil(total / limit) });
+      }
+
       const result = await query(`SELECT * FROM "${tableName}" ORDER BY created_at DESC`);
       return reply.send({ rows: result.rows });
     }

@@ -54,4 +54,20 @@ export async function runMigrations() {
     ALTER TABLE morph_sessions
     ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES morph_users(id) ON DELETE CASCADE
   `);
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS morph_connections (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES morph_users(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      type TEXT NOT NULL CHECK (type IN ('postgresql', 'mysql', 'mongodb')),
+      host TEXT NOT NULL,
+      port INTEGER NOT NULL,
+      database_name TEXT NOT NULL,
+      username TEXT NOT NULL,
+      password TEXT NOT NULL,
+      ssl BOOLEAN DEFAULT FALSE,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
 }

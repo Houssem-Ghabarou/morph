@@ -11,6 +11,7 @@ import schemaRoutes from './routes/schema';
 import dataRoutes from './routes/data';
 import sessionRoutes from './routes/sessions';
 import importRoutes from './routes/import';
+import connectionRoutes from './routes/connections';
 
 const fastify = Fastify({
   logger: {
@@ -40,6 +41,7 @@ async function bootstrap() {
   await fastify.register(schemaRoutes);
   await fastify.register(dataRoutes);
   await fastify.register(importRoutes);
+  await fastify.register(connectionRoutes);
 
   fastify.get('/health', async () => ({ status: 'ok' }));
 
