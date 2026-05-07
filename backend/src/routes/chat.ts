@@ -331,7 +331,7 @@ export default async function chatRoutes(fastify: FastifyInstance) {
         return reply.status(403).send({ error: 'Forbidden' });
       }
 
-      // Build session context so the LLM knows which tables exist and their schemas
+      // Build session context: schema + row counts + relations only (no sample data or distinct values)
       const prefix = sessionPrefix(sessionId);
       // display_name -> actual_db_name (actual names are prefixed with session prefix)
       const tableMap = new Map<string, string>();
@@ -361,53 +361,14 @@ export default async function chatRoutes(fastify: FastifyInstance) {
                 .map((c) => `${c.column_name} (${c.data_type})`)
                 .join(', ');
 
-              let sampleLine = '';
-              let valuesLine = '';
+              let rowCountLabel = '';
               try {
                 const countRes = await query(`SELECT COUNT(*) AS cnt FROM "${actual}"`);
-                const rowCount = countRes.rows[0]?.cnt ?? 0;
-                const sample = await query(
-                  `SELECT * FROM "${actual}" ORDER BY id DESC LIMIT 3`
-                );
-                if (sample.rows.length > 0) {
-                  const previews = sample.rows.map((sRow) => {
-                    const preview = Object.fromEntries(
-                      Object.entries(sRow as Record<string, unknown>).filter(([k]) => k !== 'id' && k !== 'created_at')
-                    );
-                    return JSON.stringify(preview);
-                  });
-                  sampleLine = `\n  rows (${rowCount} total): ${previews.join(', ')}`;
-                } else {
-                  sampleLine = `\n  rows: 0 (empty table)`;
-                }
+                const rowCount = Number(countRes.rows[0]?.cnt ?? 0);
+                rowCountLabel = ` [${rowCount} rows]`;
+              } catch { /* best-effort */ }
 
-                // Inject distinct values for text columns so LLM uses exact stored values in WHERE clauses
-                const textCols = cols.filter(
-                  (c) =>
-                    c.column_name !== 'id' &&
-                    c.column_name !== 'created_at' &&
-                    (c.data_type === 'text' || c.data_type.includes('char'))
-                );
-                if (textCols.length > 0 && Number(countRes.rows[0]?.cnt ?? 0) > 0) {
-                  const distinctParts: string[] = [];
-                  for (const col of textCols) {
-                    const dRes = await query(
-                      `SELECT DISTINCT "${col.column_name}" FROM "${actual}" WHERE "${col.column_name}" IS NOT NULL ORDER BY "${col.column_name}" LIMIT 20`
-                    );
-                    if (dRes.rows.length > 0) {
-                      const vals = dRes.rows.map((r) => String(r[col.column_name])).join(', ');
-                      distinctParts.push(`${col.column_name}: ${vals}`);
-                    }
-                  }
-                  if (distinctParts.length > 0) {
-                    valuesLine = `\n  known values — ${distinctParts.join(' | ')}`;
-                  }
-                }
-              } catch {
-                // Sample is best-effort
-              }
-
-              return `- ${display}: ${colDefs}${sampleLine}${valuesLine}`;
+              return `- ${display}${rowCountLabel}: ${colDefs}`;
             })
           );
 
@@ -493,7 +454,7 @@ export default async function chatRoutes(fastify: FastifyInstance) {
           const parts: string[] = [];
           for (const [display, actual] of tableMap.entries()) {
             if (newSchemas.some((s) => s.tableName === actual)) continue; // skip new empty tables
-            const res = await query(`SELECT * FROM "${actual}" ORDER BY id ASC LIMIT 50`);
+            const res = await query(`SELECT * FROM "${actual}" ORDER BY id ASC LIMIT 5`);
             if (res.rows.length === 0) continue;
             const cleaned = res.rows.map((r) => {
               const { id: _id, created_at: _ca, ...rest } = r as Record<string, unknown> & { id: unknown; created_at: unknown };
@@ -1045,27 +1006,8 @@ export default async function chatRoutes(fastify: FastifyInstance) {
         const columns = rows.length > 0 ? Object.keys(rows[0]) : [];
         const chartType = detectChartType(sql, rows);
 
-        // Fetch all session table data for accurate interpretation
-        let fullSessionData: string | undefined;
-        try {
-          const tableEntries = await Promise.all(
-            Array.from(tableMap.entries()).map(async ([display, actual]) => {
-              const res = await query(`SELECT * FROM "${actual}" ORDER BY id ASC LIMIT 100`);
-              if (res.rows.length === 0) return `=== ${display} (0 rows) ===\n(empty)`;
-              const cleaned = res.rows.map((r) => {
-                const { id: _id, created_at: _ca, ...rest } = r as Record<string, unknown> & { id: unknown; created_at: unknown };
-                return rest;
-              });
-              return `=== ${display} (${res.rows.length} rows) ===\n${cleaned.map((r) => JSON.stringify(r)).join('\n')}`;
-            })
-          );
-          fullSessionData = tableEntries.join('\n\n');
-        } catch {
-          // Best-effort — don't block
-        }
-
         // Get a natural-language interpretation of the results
-        const interpretation = await interpretQueryResult(message, rows, sessionContext, fullSessionData);
+        const interpretation = await interpretQueryResult(message, rows, sessionContext);
         const queryMessage = interpretation || buildQueryMessage(chartType, rows, message);
 
         await runInTransaction(async (client) => {

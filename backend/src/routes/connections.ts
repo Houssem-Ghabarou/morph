@@ -19,6 +19,7 @@ interface ConnectionBody {
   password: string;
   ssl?: boolean;
   name?: string;
+  connectionString?: string;
 }
 
 function parseConfig(body: ConnectionBody): ConnectionConfig {
@@ -30,6 +31,7 @@ function parseConfig(body: ConnectionBody): ConnectionConfig {
     username: body.username,
     password: body.password,
     ssl: body.ssl ?? false,
+    connectionString: body.connectionString,
   };
 }
 
@@ -124,8 +126,11 @@ export default async function connectionRoutes(fastify: FastifyInstance) {
       try {
         const { columns, rows } = await importTableData(config, srcTable);
 
-        // Only import columns that can be mapped to a PG type
-        const pgCols = columns.map((c) => ({ name: c.name, pgType: mapTypeToPg(c.type) }));
+        // Only import columns that can be mapped to a PG type; skip reserved names we add ourselves
+        const RESERVED = new Set(['id', 'created_at']);
+        const pgCols = columns
+          .map((c) => ({ name: c.name, pgType: mapTypeToPg(c.type) }))
+          .filter((c) => !RESERVED.has(c.name.toLowerCase()));
 
         const destTable = `s${sessionId}_${srcTable.replace(/[^a-z0-9_]/gi, '_').toLowerCase()}`;
 
@@ -419,7 +424,10 @@ export default async function connectionRoutes(fastify: FastifyInstance) {
       for (const srcTable of tableNames) {
         try {
           const { columns, rows: dataRows } = await importTableData(config, srcTable);
-          const pgCols = columns.map((c) => ({ name: c.name, pgType: mapTypeToPg(c.type) }));
+          const RESERVED = new Set(['id', 'created_at']);
+          const pgCols = columns
+            .map((c) => ({ name: c.name, pgType: mapTypeToPg(c.type) }))
+            .filter((c) => !RESERVED.has(c.name.toLowerCase()));
           const destTable = `s${sessionId}_${srcTable.replace(/[^a-z0-9_]/gi, '_').toLowerCase()}`;
 
           await runInTransaction(async (client) => {
@@ -492,7 +500,10 @@ export default async function connectionRoutes(fastify: FastifyInstance) {
       for (const srcTable of tableNames) {
         try {
           const { columns, rows: dataRows } = await importTableData(config, srcTable);
-          const pgCols = columns.map((c) => ({ name: c.name, pgType: mapTypeToPg(c.type) }));
+          const RESERVED = new Set(['id', 'created_at']);
+          const pgCols = columns
+            .map((c) => ({ name: c.name, pgType: mapTypeToPg(c.type) }))
+            .filter((c) => !RESERVED.has(c.name.toLowerCase()));
           const destTable = `s${sessionId}_${srcTable.replace(/[^a-z0-9_]/gi, '_').toLowerCase()}`;
 
           const existingRes = await query(

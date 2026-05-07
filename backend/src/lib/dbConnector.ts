@@ -10,6 +10,7 @@ export interface ConnectionConfig {
   username: string;
   password: string;
   ssl: boolean;
+  connectionString?: string;
 }
 
 export interface DiscoveredColumn {
@@ -236,7 +237,7 @@ async function mysqlImportTable(
 // ─── MongoDB helpers ──────────────────────────────────────────────────────────
 
 function mongoUri(config: ConnectionConfig): string {
-  // If username is provided, use authenticated URI; otherwise open (no auth)
+  if (config.connectionString) return config.connectionString;
   if (config.username) {
     const user = encodeURIComponent(config.username);
     const pass = encodeURIComponent(config.password);
@@ -248,10 +249,13 @@ function mongoUri(config: ConnectionConfig): string {
 async function getMongoClient(config: ConnectionConfig) {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { MongoClient } = require('mongodb') as typeof import('mongodb');
-  const client = new MongoClient(mongoUri(config), {
+  const uri = mongoUri(config);
+  // For SRV URIs (Atlas), let the URI control TLS — don't override it
+  const tlsOption = config.connectionString ? {} : { tls: config.ssl };
+  const client = new MongoClient(uri, {
     serverSelectionTimeoutMS: 8000,
     connectTimeoutMS: 8000,
-    tls: config.ssl,
+    ...tlsOption,
   });
   await client.connect();
   return client;

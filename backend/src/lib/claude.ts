@@ -176,6 +176,12 @@ Examples:
 - "Ahmed, 30 years old, 78kg" → {"name":"Ahmed","age":30,"weight":78}
 - "Log lunch for houssem: grilled chicken with rice, 650 calories" → {"client":"houssem","food":"grilled chicken with rice","calories":650}
 
+TYPO / SYNONYM TOLERANCE (critical for UX):
+- Users often misspell or use near-synonyms. Map them to the closest column or table name in the schema.
+- Examples: "mails" → emails column, "amt" → amount, "qty" → quantity, "rev" → revenue, "emp" → employee.
+- If a word in the user's message doesn't match exactly but a schema column/table is clearly the intended target, use that column/table.
+- Never fail a query just because of a minor spelling variation — always infer the most likely intent from the available schema.
+
 SELECT RULES:
 - Use SELECT for queries
 - Allowed: JOIN, GROUP BY, ORDER BY, LIMIT, aggregates
