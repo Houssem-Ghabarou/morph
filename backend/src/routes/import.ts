@@ -25,13 +25,15 @@ function coerceValue(value: string | null | undefined, pgType: string): unknown 
   }
   if (type === 'DATE' || type === 'TIMESTAMP') {
     const v = value.trim();
-    // Must look like an actual date: YYYY-MM-DD, MM/DD/YYYY, "Jan 15 2024", etc.
+    // Must look like an actual date string, not a bare integer JS would treat as epoch ms
     const looksLikeDate = /^\d{4}-\d{2}-\d{2}/.test(v) ||
       /^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}/.test(v) ||
-      /^[A-Za-z]{3,9}\s+\d{1,2},?\s+\d{4}/.test(v);
+      /^[A-Za-z]{3,9}\s+\d{1,2},?\s+\d{4}/.test(v) ||
+      /^[A-Za-z]{3,9}\s+[A-Za-z]{3,9}\s+\d{1,2}/.test(v); // "Thu Mar 26 2026..."
     if (!looksLikeDate) return null;
     const d = new Date(v);
-    return isNaN(d.getTime()) ? null : v;
+    if (isNaN(d.getTime())) return null;
+    return type === 'DATE' ? d.toISOString().slice(0, 10) : d.toISOString();
   }
   return value;
 }

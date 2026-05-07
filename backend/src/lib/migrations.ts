@@ -70,4 +70,17 @@ export async function runMigrations() {
       created_at TIMESTAMP DEFAULT NOW()
     )
   `);
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS morph_session_connections (
+      id SERIAL PRIMARY KEY,
+      session_id INTEGER NOT NULL REFERENCES morph_sessions(id) ON DELETE CASCADE,
+      connection_id INTEGER NOT NULL REFERENCES morph_connections(id) ON DELETE CASCADE,
+      imported_tables TEXT[] NOT NULL DEFAULT '{}',
+      auto_sync_minutes INTEGER DEFAULT NULL,
+      last_synced_at TIMESTAMP DEFAULT NULL,
+      created_at TIMESTAMP DEFAULT NOW(),
+      UNIQUE(session_id, connection_id)
+    )
+  `);
 }

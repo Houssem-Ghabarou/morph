@@ -27,10 +27,10 @@ async function tableExists(tableName: string): Promise<boolean> {
 }
 
 export default async function dataRoutes(fastify: FastifyInstance) {
-  fastify.get<{ Params: { tableName: string }; Querystring: { page?: string; limit?: string } }>(
+  fastify.get<{ Params: { tableName: string }; Querystring: { page?: string; limit?: string; search?: string } }>(
     '/api/data/:tableName',
     async (
-      request: FastifyRequest<{ Params: { tableName: string }; Querystring: { page?: string; limit?: string } }>,
+      request: FastifyRequest<{ Params: { tableName: string }; Querystring: { page?: string; limit?: string; search?: string } }>,
       reply: FastifyReply
     ) => {
       const { tableName } = request.params;
@@ -38,22 +38,52 @@ export default async function dataRoutes(fastify: FastifyInstance) {
         return reply.status(404).send({ error: `Table "${tableName}" not found` });
       }
 
-      const limit = Math.min(parseInt(request.query.limit ?? '0', 10) || 0, 10000);
-      const page = Math.max(parseInt(request.query.page ?? '1', 10), 1);
+      const limit  = Math.min(parseInt(request.query.limit ?? '0', 10) || 0, 10000);
+      const page   = Math.max(parseInt(request.query.page  ?? '1', 10), 1);
+      const search = (request.query.search ?? '').trim();
+
+      // Build search WHERE clause across all columns cast to TEXT
+      let where = '';
+      const whereParams: unknown[] = [];
+
+      if (search) {
+        const colsRes = await query(
+          `SELECT column_name FROM information_schema.columns
+           WHERE table_schema = 'public' AND table_name = $1
+           ORDER BY ordinal_position`,
+          [tableName]
+        );
+        const cols = colsRes.rows
+          .map((r) => r.column_name as string)
+          .filter((c) => c !== 'id');
+
+        if (cols.length > 0) {
+          const conditions = cols.map((c, i) => `"${c}"::TEXT ILIKE $${i + 1}`);
+          where = `WHERE (${conditions.join(' OR ')})`;
+          whereParams.push(...cols.map(() => `%${search}%`));
+        }
+      }
 
       if (limit > 0) {
         const offset = (page - 1) * limit;
-        const countRes = await query(`SELECT COUNT(*) AS total FROM "${tableName}"`);
+        const countRes = await query(
+          `SELECT COUNT(*) AS total FROM "${tableName}" ${where}`,
+          whereParams
+        );
         const total = parseInt(countRes.rows[0].total, 10);
+        const n = whereParams.length;
         const result = await query(
-          `SELECT * FROM "${tableName}" ORDER BY created_at DESC LIMIT $1 OFFSET $2`,
-          [limit, offset]
+          `SELECT * FROM "${tableName}" ${where} ORDER BY created_at DESC LIMIT $${n + 1} OFFSET $${n + 2}`,
+          [...whereParams, limit, offset]
         );
         return reply.send({ rows: result.rows, total, page, limit, pages: Math.ceil(total / limit) });
       }
 
-      const result = await query(`SELECT * FROM "${tableName}" ORDER BY created_at DESC`);
-      return reply.send({ rows: result.rows });
+      const result = await query(
+        `SELECT * FROM "${tableName}" ${where} ORDER BY created_at DESC`,
+        whereParams
+      );
+      return reply.send({ rows: result.rows, total: result.rows.length });
     }
   );
 
