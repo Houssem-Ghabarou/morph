@@ -1,0 +1,98 @@
+@startuml use_case_message_detail
+title Cas d'Utilisation Raffiné — Envoyer un message au LLM
+
+left to right direction
+
+skinparam actorStyle awesome
+skinparam backgroundColor #FFFFFF
+skinparam usecase {
+  BackgroundColor #EDE7F6
+  BorderColor #7C3AED
+  FontSize 11
+}
+skinparam actor {
+  BackgroundColor #F3E8FF
+  BorderColor #7C3AED
+  FontSize 11
+}
+skinparam ArrowColor #5B21B6
+skinparam packageStyle rectangle
+skinparam packageBorderColor #C4B5FD
+skinparam packageFontSize 11
+skinparam packageFontStyle bold
+skinparam noteFontSize 10
+skinparam noteBackgroundColor #FFFDE7
+skinparam noteBorderColor #F9A825
+
+actor "Utilisateur" as User
+
+package "Envoyer un message en langage naturel" {
+  usecase "Envoyer un message" as SendMessage
+
+  usecase "Saisir le texte\ndans le chat" as TypeMessage
+  usecase "Vérifier l'identité\nde l'utilisateur" as VerifyIdentity
+  usecase "Construire le contexte\nde la session\n(tables existantes)" as BuildContext
+  usecase "Détecter l'intention\nde l'utilisateur" as DetectIntent
+  usecase "Générer le SQL\ncorrespondant" as GenerateSQL
+  usecase "Sauvegarder le\nmessage et la réponse" as PersistMessage
+
+  usecase "Créer une\nnouvelle table" as CreateTable
+  usecase "Modifier une\ntable existante" as AlterTable
+  usecase "Insérer des\ndonnées" as InsertData
+  usecase "Interroger les\ndonnées (SELECT)" as QueryData
+  usecase "Analyser les données\n(graphiques, KPIs)" as AnalyzeData
+  usecase "Générer des\ndonnées d'exemple" as SeedData
+  usecase "Nommer automatiquement\nla session" as AutoName
+
+  usecase "Afficher la réponse\nsur le canvas" as RenderResponse
+  usecase "Afficher un\nmessage d'erreur" as ShowError
+}
+
+actor "Claude AI" as Claude <<system>>
+
+' ─── Acteur principal ───────────────────────────────────────────
+User --> SendMessage
+
+' ─── Étapes systématiques (include) ─────────────────────────────
+SendMessage ..> TypeMessage     : <<include>>
+SendMessage ..> VerifyIdentity  : <<include>>
+SendMessage ..> BuildContext    : <<include>>
+SendMessage ..> DetectIntent    : <<include>>
+SendMessage ..> GenerateSQL     : <<include>>
+SendMessage ..> PersistMessage  : <<include>>
+SendMessage ..> RenderResponse  : <<include>>
+
+' ─── Actions selon l'intention détectée (extend) ────────────────
+SendMessage ..> CreateTable  : <<extend>>\n[créer table]
+SendMessage ..> AlterTable   : <<extend>>\n[modifier table]
+SendMessage ..> InsertData   : <<extend>>\n[ajouter données]
+SendMessage ..> QueryData    : <<extend>>\n[poser une question]
+SendMessage ..> AnalyzeData  : <<extend>>\n[analyser]
+SendMessage ..> SeedData     : <<extend>>\n[données d'exemple]
+SendMessage ..> AutoName     : <<extend>>\n[1er message]
+
+' ─── Cas d'erreur ───────────────────────────────────────────────
+SendMessage ..> ShowError    : <<extend>>\n[intention non comprise]
+
+' ─── Système externe ────────────────────────────────────────────
+DetectIntent --> Claude
+GenerateSQL  --> Claude
+AnalyzeData  --> Claude
+SeedData     --> Claude
+AutoName     --> Claude
+
+note bottom of DetectIntent
+  Claude analyse le message et
+  identifie une action parmi :
+  create / alter / insert / query /
+  analyze / seed / unknown
+end note
+
+note right of SendMessage
+  Pré-condition  : utilisateur connecté,
+                   session active sélectionnée
+  Post-condition : nouvelle table, ligne insérée,
+                   ou résultat affiché sur le canvas
+end note
+
+@enduml

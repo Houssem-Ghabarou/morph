@@ -1,0 +1,105 @@
+@startuml use_case_import_detail
+title Cas d'Utilisation Raffiné — Importer un fichier CSV
+
+left to right direction
+
+skinparam actorStyle awesome
+skinparam backgroundColor #FFFFFF
+skinparam usecase {
+  BackgroundColor #EDE7F6
+  BorderColor #7C3AED
+  FontSize 11
+}
+skinparam actor {
+  BackgroundColor #F3E8FF
+  BorderColor #7C3AED
+  FontSize 11
+}
+skinparam ArrowColor #5B21B6
+skinparam packageStyle rectangle
+skinparam packageBorderColor #C4B5FD
+skinparam packageFontSize 11
+skinparam packageFontStyle bold
+skinparam noteFontSize 10
+skinparam noteBackgroundColor #FFFDE7
+skinparam noteBorderColor #F9A825
+
+actor "Utilisateur" as User
+
+package "Importer un fichier CSV" {
+  usecase "Importer un\nfichier CSV" as ImportCSV
+
+  usecase "Sélectionner le fichier\nCSV à importer" as SelectFile
+  usecase "Décrire le contenu\n(optionnel)" as DescribeContent
+  usecase "Vérifier l'identité\nde l'utilisateur" as VerifyIdentity
+
+  usecase "Analyser la structure\ndu fichier" as AnalyzeFile
+  usecase "Détecter les types\nde colonnes" as DetectTypes
+  usecase "Suggérer le schéma\nde la table" as SuggestSchema
+  usecase "Comparer aux tables\nexistantes" as CompareExisting
+
+  usecase "Prévisualiser les\ndonnées et le mapping" as Preview
+  usecase "Ajuster les noms\net les types" as AdjustMapping
+
+  usecase "Créer une nouvelle\ntable" as CreateNew
+  usecase "Mapper sur une\ntable existante" as MapExisting
+
+  usecase "Insérer toutes les\nlignes (bulk insert)" as BulkInsert
+  usecase "Afficher la table\nsur le canvas" as ShowOnCanvas
+
+  usecase "Afficher un\nmessage d'erreur" as ShowError
+}
+
+actor "Claude AI" as Claude <<system>>
+
+' ─── Étapes utilisateur ─────────────────────────────────────────
+User --> ImportCSV
+
+ImportCSV ..> SelectFile      : <<include>>
+ImportCSV ..> DescribeContent : <<extend>>\n[description fournie]
+ImportCSV ..> VerifyIdentity  : <<include>>
+
+' ─── Phase 1 : Analyse automatique par le système ───────────────
+ImportCSV ..> AnalyzeFile     : <<include>>
+AnalyzeFile ..> DetectTypes      : <<include>>
+AnalyzeFile ..> SuggestSchema    : <<include>>
+AnalyzeFile ..> CompareExisting  : <<include>>
+
+' ─── Phase 2 : Validation par l'utilisateur ─────────────────────
+ImportCSV ..> Preview         : <<include>>
+Preview   ..> AdjustMapping   : <<extend>>\n[utilisateur modifie]
+
+' ─── Phase 3 : Décision de flux ─────────────────────────────────
+Preview ..> CreateNew    : <<extend>>\n[nouvelle table]
+Preview ..> MapExisting  : <<extend>>\n[table existante]
+
+' ─── Phase 4 : Confirmation et insertion ────────────────────────
+ImportCSV ..> BulkInsert      : <<include>>
+ImportCSV ..> ShowOnCanvas    : <<include>>
+
+' ─── Erreur ─────────────────────────────────────────────────────
+AnalyzeFile ..> ShowError : <<extend>>\n[CSV invalide / vide]
+BulkInsert  ..> ShowError : <<extend>>\n[erreur d'insertion]
+
+' ─── Système externe ────────────────────────────────────────────
+DetectTypes     --> Claude
+SuggestSchema   --> Claude
+CompareExisting --> Claude
+
+note bottom of AnalyzeFile
+  Claude lit les en-têtes et un
+  échantillon des lignes pour
+  proposer automatiquement les types
+  de colonnes adaptés (texte, entier,
+  décimal, date, booléen…)
+end note
+
+note right of ImportCSV
+  Pré-condition  : utilisateur connecté,
+                   session active
+  Post-condition : nouvelle table créée
+                   ou table existante enrichie,
+                   N lignes importées
+end note
+
+@enduml

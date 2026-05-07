@@ -1,0 +1,170 @@
+@startuml use_case_global
+title Diagramme de Cas d'Utilisation Global — Morph
+
+left to right direction
+
+skinparam actorStyle awesome
+skinparam backgroundColor #FFFFFF
+skinparam usecase {
+  BackgroundColor #EDE7F6
+  BorderColor #7C3AED
+  FontSize 11
+}
+skinparam actor {
+  BackgroundColor #F3E8FF
+  BorderColor #7C3AED
+  FontSize 11
+}
+skinparam ArrowColor #5B21B6
+skinparam packageStyle rectangle
+skinparam packageBorderColor #C4B5FD
+skinparam packageFontSize 11
+skinparam packageFontStyle bold
+skinparam noteFontSize 10
+skinparam noteBackgroundColor #FFFDE7
+skinparam noteBorderColor #F9A825
+
+' ══════════════════════════════════════════════════════════════════
+' ACTEUR PRINCIPAL
+' ══════════════════════════════════════════════════════════════════
+
+actor "Utilisateur" as User
+
+' ══════════════════════════════════════════════════════════════════
+' PACKAGES
+' ══════════════════════════════════════════════════════════════════
+
+package "Authentification" {
+  usecase "S'authentifier" as Auth
+  usecase "Vérifier l'identité" as CheckAuth
+}
+
+package "Gestion du Compte" {
+  usecase "Modifier son\nmot de passe" as ChangePassword
+}
+
+package "Gestion des Sessions" {
+  usecase "Créer une session" as CreateSession
+  usecase "Renommer une session" as RenameSession
+  usecase "Supprimer une session" as DeleteSession
+  usecase "Changer de session active" as SwitchSession
+}
+
+package "Interaction par Chat" {
+  usecase "Envoyer un message\nen langage naturel" as SendMessage
+  usecase "Créer / Modifier\nune table" as ManageTable
+  usecase "Insérer des données" as InsertData
+  usecase "Interroger les données" as QueryData
+  usecase "Analyser les données" as AnalyzeData
+  usecase "Générer des données\nd'exemple" as SeedData
+}
+
+package "Import et Édition" {
+  usecase "Importer un fichier CSV" as ImportCSV
+  usecase "Éditer une ligne\n(ajout / modification)" as EditRow
+  usecase "Supprimer une ligne" as DeleteRow
+  usecase "Supprimer une table" as DropTable
+}
+
+package "Visualisation et Canvas" {
+  usecase "Visualiser le canvas" as ViewCanvas
+  usecase "Déplacer une carte\n(Drag & Drop)" as DragCard
+  usecase "Voir les relations\nentre tables" as ViewRelations
+  usecase "Consulter le tableau\nde bord" as ViewDashboard
+  usecase "Personnaliser le thème" as ChangeTheme
+}
+
+package "Actions Automatiques du Système" {
+  usecase "Détecter l'intention\nde l'utilisateur" as DetectIntent
+  usecase "Générer le SQL\nadapté au contexte" as GenerateSQL
+  usecase "Détecter le schéma\ndu fichier CSV" as DetectSchema
+  usecase "Nommer automatiquement\nla session" as AutoName
+  usecase "Détecter les relations\nentre tables" as DetectRelations
+}
+
+' ══════════════════════════════════════════════════════════════════
+' ACTEUR EXTERNE — droite
+' ══════════════════════════════════════════════════════════════════
+
+actor "Claude AI\n(Anthropic)" as Claude <<system>>
+
+' ══════════════════════════════════════════════════════════════════
+' UTILISATEUR → CAS D'UTILISATION
+' ══════════════════════════════════════════════════════════════════
+
+User --> Auth
+
+User --> ChangePassword
+User --> CreateSession
+User --> RenameSession
+User --> DeleteSession
+User --> SwitchSession
+User --> SendMessage
+User --> ImportCSV
+User --> EditRow
+User --> DeleteRow
+User --> DropTable
+User --> ViewCanvas
+User --> DragCard
+User --> ViewRelations
+User --> ViewDashboard
+User --> ChangeTheme
+
+' ══════════════════════════════════════════════════════════════════
+' AUTHENTIFICATION REQUISE — chaque action protégée <<include>>
+' ══════════════════════════════════════════════════════════════════
+
+ChangePassword ..> CheckAuth : <<include>>
+CreateSession  ..> CheckAuth : <<include>>
+RenameSession  ..> CheckAuth : <<include>>
+DeleteSession  ..> CheckAuth : <<include>>
+SwitchSession  ..> CheckAuth : <<include>>
+SendMessage    ..> CheckAuth : <<include>>
+ImportCSV      ..> CheckAuth : <<include>>
+EditRow        ..> CheckAuth : <<include>>
+DeleteRow      ..> CheckAuth : <<include>>
+DropTable      ..> CheckAuth : <<include>>
+ViewCanvas     ..> CheckAuth : <<include>>
+DragCard       ..> CheckAuth : <<include>>
+ViewRelations  ..> CheckAuth : <<include>>
+ViewDashboard  ..> CheckAuth : <<include>>
+ChangeTheme    ..> CheckAuth : <<include>>
+
+note bottom of CheckAuth
+  Précondition commune à toutes
+  les actions : l'utilisateur doit
+  être authentifié
+end note
+
+' ══════════════════════════════════════════════════════════════════
+' SOUS-CAS DU CHAT (extend selon l'intention détectée)
+' ══════════════════════════════════════════════════════════════════
+
+SendMessage ..> DetectIntent : <<include>>
+SendMessage ..> ManageTable  : <<extend>>
+SendMessage ..> InsertData   : <<extend>>
+SendMessage ..> QueryData    : <<extend>>
+SendMessage ..> AnalyzeData  : <<extend>>
+SendMessage ..> SeedData     : <<extend>>
+SendMessage ..> AutoName     : <<extend>>
+
+ImportCSV   ..> DetectSchema    : <<include>>
+ManageTable ..> DetectRelations : <<include>>
+
+ManageTable ..> GenerateSQL : <<include>>
+InsertData  ..> GenerateSQL : <<include>>
+QueryData   ..> GenerateSQL : <<include>>
+
+' ══════════════════════════════════════════════════════════════════
+' SYSTÈME EXTERNE — Claude AI
+' ══════════════════════════════════════════════════════════════════
+
+DetectIntent    --> Claude
+GenerateSQL     --> Claude
+DetectSchema    --> Claude
+AnalyzeData     --> Claude
+SeedData        --> Claude
+AutoName        --> Claude
+DetectRelations --> Claude
+
+@enduml

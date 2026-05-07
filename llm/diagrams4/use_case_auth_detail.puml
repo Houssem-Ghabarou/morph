@@ -1,0 +1,83 @@
+@startuml use_case_auth_detail
+title Cas d'Utilisation Raffiné — Authentification
+
+left to right direction
+
+skinparam actorStyle awesome
+skinparam backgroundColor #FFFFFF
+skinparam usecase {
+  BackgroundColor #EDE7F6
+  BorderColor #7C3AED
+  FontSize 11
+}
+skinparam actor {
+  BackgroundColor #F3E8FF
+  BorderColor #7C3AED
+  FontSize 11
+}
+skinparam ArrowColor #5B21B6
+skinparam packageStyle rectangle
+skinparam packageBorderColor #C4B5FD
+skinparam packageFontSize 11
+skinparam packageFontStyle bold
+skinparam noteFontSize 10
+skinparam noteBackgroundColor #FFFDE7
+skinparam noteBorderColor #F9A825
+
+actor "Utilisateur" as User
+
+package "S'authentifier" {
+  usecase "S'authentifier" as Auth
+
+  usecase "S'inscrire\n(création de compte)" as Register
+  usecase "Se connecter\n(compte existant)" as Login
+  usecase "Se déconnecter" as Logout
+  usecase "Vérifier l'identité\nde l'utilisateur" as VerifyIdentity
+
+  usecase "Saisir l'email\net le mot de passe" as EnterCredentials
+  usecase "Confirmer le\nmot de passe" as ConfirmPassword
+  usecase "Valider le format\nde l'email" as ValidateEmail
+  usecase "Vérifier la longueur\ndu mot de passe (≥ 6)" as ValidatePassword
+
+  usecase "Afficher un\nmessage d'erreur" as ShowError
+}
+
+' ─── Acteur principal ────────────────────────────────────────────
+User --> Auth
+
+' ─── Auth se décline en 3 actions ────────────────────────────────
+Auth ..> Register : <<extend>>\n[premier usage]
+Auth ..> Login    : <<extend>>\n[déjà inscrit]
+Auth ..> Logout   : <<extend>>\n[déjà connecté]
+
+' ─── Étapes communes (include) ───────────────────────────────────
+Register ..> EnterCredentials  : <<include>>
+Register ..> ConfirmPassword   : <<include>>
+Register ..> ValidateEmail     : <<include>>
+Register ..> ValidatePassword  : <<include>>
+
+Login    ..> EnterCredentials  : <<include>>
+Login    ..> ValidateEmail     : <<include>>
+
+' ─── Vérification continue après connexion ───────────────────────
+Logout   ..> VerifyIdentity    : <<include>>
+
+' ─── Cas d'erreur (extend) ───────────────────────────────────────
+Login    ..> ShowError : <<extend>>\n[identifiants invalides]
+Register ..> ShowError : <<extend>>\n[email déjà utilisé]
+
+note bottom of VerifyIdentity
+  Toutes les actions de l'application
+  (sessions, messages, données…)
+  vérifient au préalable l'identité
+  de l'utilisateur connecté.
+end note
+
+note right of Auth
+  Pré-conditions : aucune
+  Post-conditions :
+  • Inscription / connexion : utilisateur authentifié
+  • Déconnexion : utilisateur non authentifié
+end note
+
+@enduml

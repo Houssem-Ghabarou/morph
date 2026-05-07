@@ -1,0 +1,60 @@
+@startuml component_diagram
+title Diagramme de Composants — Architecture Morph
+
+skinparam backgroundColor #FFFFFF
+skinparam componentBackgroundColor #EDE7F6
+skinparam componentBorderColor #7C3AED
+skinparam packageBackgroundColor #F9F5FF
+skinparam packageBorderColor #C4B5FD
+skinparam arrowColor #5B21B6
+skinparam roundCorner 8
+skinparam NoteBackgroundColor #FFF9C4
+skinparam NoteBorderColor #FBC02D
+
+package "Frontend — Next.js (Port 3000)" {
+  component [Pages\n(Signin / Signup / Home)] as Pages
+  component [Composants React\n(Canvas, ChatPanel, Sidebar)] as Components
+  component [Middleware\n(Protection des routes)] as Middleware
+  component [API Client] as APIClient
+}
+
+package "Backend — Fastify (Port 3001)" {
+  component [Routes Auth\n/api/auth/*] as AuthRoutes
+  component [Routes Sessions\n/api/sessions/*] as SessionRoutes
+  component [Route Chat\n/api/chat] as ChatRoute
+  component [Routes Data & Import\n/api/data | /api/import] as DataRoutes
+  component [Vérification JWT\n(requireAuth)] as JWT
+}
+
+package "Services Externes" {
+  component [Claude AI\n(Anthropic API)] as Claude
+  database "PostgreSQL\n(Tables domaine\n+ Tables dynamiques)" as DB
+}
+
+Pages --> Components
+Components --> APIClient
+Middleware --> Pages : redirige si\nnon authentifié
+
+APIClient --> AuthRoutes : HTTP + Cookie JWT
+APIClient --> SessionRoutes
+APIClient --> ChatRoute
+APIClient --> DataRoutes
+
+AuthRoutes --> JWT
+SessionRoutes --> JWT
+ChatRoute --> JWT
+DataRoutes --> JWT
+
+ChatRoute --> Claude : génération SQL
+DataRoutes --> DB
+SessionRoutes --> DB
+AuthRoutes --> DB
+ChatRoute --> DB
+
+note bottom of DB
+  Tables fixes: morph_users, morph_sessions,
+  morph_messages, morph_session_tables
+  Tables dynamiques: s{id}_nom (créées par le LLM)
+end note
+
+@enduml

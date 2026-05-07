@@ -1,0 +1,91 @@
+@startuml use_case_session_detail
+title Cas d'Utilisation Raffiné — Gestion des Sessions
+
+left to right direction
+
+skinparam actorStyle awesome
+skinparam backgroundColor #FFFFFF
+skinparam usecase {
+  BackgroundColor #EDE7F6
+  BorderColor #7C3AED
+  FontSize 11
+}
+skinparam actor {
+  BackgroundColor #F3E8FF
+  BorderColor #7C3AED
+  FontSize 11
+}
+skinparam ArrowColor #5B21B6
+skinparam packageStyle rectangle
+skinparam packageBorderColor #C4B5FD
+skinparam packageFontSize 11
+skinparam packageFontStyle bold
+skinparam noteFontSize 10
+skinparam noteBackgroundColor #FFFDE7
+skinparam noteBorderColor #F9A825
+
+actor "Utilisateur" as User
+
+package "Gérer mes sessions" {
+  usecase "Gérer mes sessions" as ManageSessions
+
+  usecase "Vérifier l'identité\nde l'utilisateur" as VerifyIdentity
+  usecase "Lister mes\nsessions" as ListSessions
+
+  usecase "Créer une\nnouvelle session" as CreateSession
+  usecase "Renommer une\nsession" as RenameSession
+  usecase "Supprimer une\nsession" as DeleteSession
+  usecase "Changer de\nsession active" as SwitchSession
+  usecase "Épingler une\nsession (favori)" as PinSession
+
+  usecase "Restaurer l'état\nde la session\n(messages + tables)" as RestoreState
+  usecase "Vider le canvas\net réinitialiser\nle contexte" as ResetCanvas
+
+  usecase "Confirmer la\nsuppression" as ConfirmDelete
+  usecase "Supprimer toutes les\ntables associées\nen cascade" as CascadeDrop
+
+  usecase "Renommer\nautomatiquement\nlors du 1er message" as AutoName
+}
+
+actor "Claude AI" as Claude <<system>>
+
+' ─── Acteur principal ───────────────────────────────────────────
+User --> ManageSessions
+
+' ─── Étapes systématiques ───────────────────────────────────────
+ManageSessions ..> VerifyIdentity : <<include>>
+ManageSessions ..> ListSessions   : <<include>>
+
+' ─── Sous-cas (extend selon l'action choisie) ───────────────────
+ManageSessions ..> CreateSession  : <<extend>>
+ManageSessions ..> RenameSession  : <<extend>>
+ManageSessions ..> DeleteSession  : <<extend>>
+ManageSessions ..> SwitchSession  : <<extend>>
+ManageSessions ..> PinSession     : <<extend>>
+
+' ─── Détails de chaque sous-cas ─────────────────────────────────
+CreateSession ..> ResetCanvas     : <<include>>
+SwitchSession ..> RestoreState    : <<include>>
+DeleteSession ..> ConfirmDelete   : <<include>>
+DeleteSession ..> CascadeDrop     : <<include>>
+
+RenameSession ..> AutoName        : <<extend>>\n[1er message du chat]
+
+' ─── Système externe ────────────────────────────────────────────
+AutoName --> Claude
+
+note bottom of CascadeDrop
+  La suppression d'une session entraîne
+  la suppression automatique de toutes
+  ses données : messages, tables créées
+  par le LLM, positions des cartes…
+end note
+
+note right of ManageSessions
+  Pré-condition  : utilisateur connecté
+  Post-condition : la session active reflète
+                   l'action effectuée et le
+                   canvas affiche son contenu
+end note
+
+@enduml

@@ -1,0 +1,38 @@
+@startuml state_session
+title Diagramme d'États — Cycle de vie d'une Session
+
+skinparam backgroundColor #FFFFFF
+skinparam state {
+  BackgroundColor #EDE7F6
+  BorderColor #7C3AED
+  ArrowColor #5B21B6
+  StartColor #7C3AED
+  EndColor #1A1A2E
+}
+skinparam NoteBackgroundColor #FFF9C4
+skinparam NoteBorderColor #FBC02D
+
+[*] --> NonAuthentifie
+
+state "Non Authentifié" as NonAuthentifie
+state "Session Vide" as Vide : Canvas vide\nAucune table
+state "Session Active" as Active : Tables sur le canvas\nConversation en cours
+state "Supprimée" as Deleted : Tables droppées\nMessages effacés
+
+NonAuthentifie --> Vide : Connexion réussie\n(JWT cookie défini)
+Vide --> Active : Premier message envoyé\n→ table créée par le LLM
+Active --> Active : Nouveau message\n(alter / insert / query / seed)
+Active --> Vide : Nouvelle session créée
+Active --> Active : Changement de session\n(état restauré depuis la DB)
+Active --> Deleted : Session supprimée
+Deleted --> Vide : Canvas réinitialisé
+Active --> NonAuthentifie : Déconnexion\n(cookie effacé)
+NonAuthentifie --> [*]
+
+note right of Active
+  Actions possibles via le chat :
+  create / alter / insert /
+  query / analyze / seed
+end note
+
+@enduml
