@@ -1,0 +1,240 @@
+\chapter{\textbf{Analyse préliminaire}}
+\newpage
+
+\section*{Introduction}
+La phase de spécification des besoins est nécessaire pour la conception de toute application pour fixer dès le début les besoins et la nature des utilisateurs cible et les scénarios d'utilisation du produit à développer.
+
+Dans ce chapitre nous déterminons les fonctionnalités, les acteurs les plus pertinents, et identifions les cas d'utilisations initiaux en traduisant les besoins fonctionnels en diagramme de cas d'utilisations.
+
+\section{Spécification des besoins}
+    
+    \subsection{Identification des acteurs}
+    Les acteurs sont les entités externes qui interagissent avec le système. Notre projet comporte principalement trois acteurs:
+    
+    \begin{itemize}
+        \item \raggedright \textbf{Responsable:} cet acteur dont le rôle est de créer et de gérer les tâches du projet et qui sélectionne les membres de l'équipe appropriés et surveiller leurs avancements. il manque juste le privilège de l’ajout et la modification desréclamations.
+        \item \raggedright \textbf{Développeur:} cet acteur n'a accès qu'aux tâches qui lui sont assignées et modifier son status.
+        \item \raggedright \textbf{Client:} c'est un acteur qui utilise l'application pour l'ajout, la suppression, la modification et il manque le pouvoir de la modification du statut de ses propres réclamations.
+    \end{itemize}
+    \subsection{Identification des besoins}
+    La spécification des besoins constitue la première étape de toute application à développer, dans laquelle nous déterminerons les exigences de l’application. Nous faisons la distinction entre les besoins fonctionnelles et les besoins non fonctionnelles qui fournissent les fonctions attendues de l’application pour éviter de développer des applications indésirables, et pour trouver un accord commun entre spécialistes et utilisateurs pour réussir le projet.
+    
+    \subsubsection{Les besoins fonctionnels}
+    Les besoins fonctionnels répondent aux points précis du cahier des charges, et sont donc requis par notre utilisateur final et lui sont indispensables. En d’autres termes, ce sont les besoins obligatoires ou encore les fonctionnalités de l’application. 
+    \newpage
+    À cet égard, notre application doit répondre aux besoins fonctionnels suivants:
+    
+    \begin{itemize}
+        \item \raggedright \textbf{Responsable:}
+            \begin{itemize}
+                \item[$\ast$] \raggedright S’authentifier.
+                \item[$\ast$] \raggedright Gérer les membres (l'ajout, la suppression, la modification).
+                \item[$\ast$] \raggedright Gérer les tâches (l'ajout, la suppression, la modification)
+                \item[$\ast$] \raggedright Gérer les réclamations (la suppression, modification du statut, Archiver).
+                \item[$\ast$] \raggedright Communiquer avec les clients.
+            \end{itemize}
+        \item \raggedright \textbf{Développeur:}
+            \begin{itemize}
+                \item[$\ast$] \raggedright S’authentifier.
+                \item[$\ast$] \raggedright Modifier le statut des tâches qui lui sont assignées.
+            \end{itemize}
+        \item \raggedright \textbf{Client:} 
+            \begin{itemize}
+                \item[$\ast$] \raggedright S’authentifier.
+                \item[$\ast$] \raggedright Gérer les réclamations (l'ajout, la suppression, la modification).
+                \item[$\ast$] \raggedright Communiquer avec le responsable.
+            \end{itemize}
+    \end{itemize}
+    
+    \subsubsection{Les besoins non fonctionnels}
+    \begin{itemize}
+        \item \raggedright \textbf{L'ergonomie:} l’application doit fournir une interface conviviale et simple pour tout type d’utilisateur car elle présente le premier contact de l’utilisateur avec l’application et par le biais de celle-ci on découvrira ses fonctionnalités.
+        \item \raggedright \textbf{La sécurité:} on doit prendre en considération la confidentialité des données de l’utilisateur surtout au niveau de l’authentification.
+        \item \raggedright \textbf{La fiabilité:} l’application doit avoir une bonne qualité de contenu ainsi qu’une bonne adaptabilité aux différentes tailles des écrans des appareils mobiles. D’autre part il faut assurer le bon fonctionnement sans erreur.
+        \item \raggedright \textbf{La performance:} le temps de réponse et le chargement des données doivent être minimaux et la navigation d’une interface à une autre ne doit pas gêner l’utilisateur.
+    \end{itemize}
+\newpage   
+\section{Diagramme de cas d'utilisation}
+    \subsection{Diagramme de cas d'utilisation général}
+    Les diagrammes de cas d’utilisation sont des diagrammes UML utilisés pour donner une vision
+    statique et globale du comportement fonctionnel d’un système logiciel. La figure \ref{fig:diagramme-usecase-global} représente le diagramme général de notre application.
+    \vspace{8mm}
+    \begin{figure}[H]
+        \centering
+        \includegraphics[width=6.2in]{images/UseCase.png}
+        \caption{Diagramme de cas d'utilisation général}
+        \label{fig:diagramme-usecase-global}
+    \end{figure}
+    
+\newpage
+\subsection{Diagramme de cas d’utilisation «S’authentifier»}
+    La figure \ref{fig:diagramme-usecase-auth} présente le diagramme de cas d’utilisation d’authentification d’un Client et Développeur, de  même pour le responsable.
+    \begin{figure}[H]
+        \centering
+        \includegraphics[width=4.9in]{images/UseCase s'authentifier.png}
+        \caption{Diagramme de cas d’utilisation «S’authentifier»}
+        \label{fig:diagramme-usecase-auth}
+    \end{figure}
+
+    Le tableau \ref{tab:useCase s'authentifier} décrit le cas d’utilisation « S’authentifier » en détails en expliquant les scénarios.
+    \begin{table}[H]
+    \centering
+    \begin{tabular}{|R{4cm}||R{10cm}|} 
+    \hline
+    \textbf{Nom du cas d'utilisation} & S'authentifier \\ 
+    \hline
+    \textbf{Acteurs} & Responsable, Développeur et Client \\ 
+    \hline
+    \textbf{Description} & Chaque utilisateur inclut dans   le   système doit présenter son nom de l’utilisateur et son mot de passe pour accéder à son espace a l’exception de la déconnexion automatique, le processus d’authentification n’est effectué qu’une seule fois. \\ 
+    \hline
+    \textbf{Pré-condition} & L'acteur doit être inscrit  \\ 
+    \hline
+    \textbf{Scénario nominal} & 
+    \begin{tabular}[c]{@{}l@{}} 1. L'acteur saisit son login et mot de passe.
+    \\2. L'acteur confirme l'action.
+    \\3. Le système vérifie les champs du formulaire.
+    \\4. Le système redirige l'acteur vers son espace.\end{tabular} \\ 
+    \hline
+    \textbf{Scénario alternative} & \begin{tabular}[c]{@{}l@{}}1.1: Si les champs sont erronés ou vides. \\- Le système les indique dans le formulaire.\\3.1: Si le login ou le mot de passe est invalide.\\- Le système affiche un message d'erreur.\end{tabular} \\ 
+    \hline
+    \textbf{Post-condition} & L'acteur sera authentifié. \\
+    \hline
+    \end{tabular}
+    \caption{Description textuelle de cas d'utilisation « S'authentifier »}
+    \label{tab:useCase s'authentifier}
+    \end{table}
+
+\subsection{Diagramme de cas d’utilisation «Gérer profil»}
+    La figure \ref{fig:diagramme-usecase-profil} présente le diagramme de cas d’utilisation "Gérer Profil" d’un utilisateur.
+    \begin{figure}[H]
+        \centering
+        \includegraphics[width=4.9in]{images/usecase - gérer profil.png}
+        \caption{Diagramme de cas d’utilisation «Gérer profil»}
+        \label{fig:diagramme-usecase-profil}
+    \end{figure}
+
+    Le tableau \ref{tab:useCase s'authentifier consulter} décrit le cas d’utilisation «Consulter Profil» en détails en expliquant les scénarios.
+    \begin{table}[H]
+    \centering
+    \begin{tabular}{|R{4cm}||R{10cm}|} 
+    \hline
+    \textbf{Nom du cas d'utilisation} & Consulter profil \\ 
+    \hline
+    \textbf{Acteurs} & Responsable, Développeur et Client \\ 
+    \hline
+    \textbf{Description} & L’utilisateur peut consulter ses informations Personnelles et modifier leur propre mot de passe. \\ 
+    \hline
+    \textbf{Pré-condition} & L'acteur doit connecté  \\ 
+    \hline
+    \textbf{Scénario nominal} & 
+    \begin{tabular}[c]{@{}l@{}} 1. L’utilisateur accède à la rubrique de "consulter son profil".
+    \\2. Le système affiche les données  correspondantes.\end{tabular} \\ 
+    \hline
+    \textbf{Post-condition} & Informations affichées. \\
+    \hline
+    \end{tabular}
+    \caption{Description textuelle de cas d'utilisation «Consulter profil»}
+    \label{tab:useCase s'authentifier consulter}
+    \end{table}
+    
+    \newpage
+    Le tableau \ref{tab:useCase s'authentifier edit-pass} décrit le cas d’utilisation «Consulter Profil» en détails en expliquant les scénarios.
+    \begin{table}[H]
+    \centering
+    \begin{tabular}{|R{4cm}||R{10cm}|} 
+    \hline
+    \textbf{Nom du cas d'utilisation} & Modifier mot de passe \\ 
+    \hline
+    \textbf{Acteurs} & Responsable, Développeur et Client \\ 
+    \hline
+    \textbf{Description} & L’utilisateur peut changer le mot de passe et essentiellement pour la première fois, puisque tous les comptes sont créer par le responsable. \\ 
+    \hline
+    \textbf{Pré-condition} & L'acteur doit connecté  \\ 
+    \hline
+    \textbf{Scénario nominal} & 
+    \begin{tabular}[c]{@{}l@{}} 1. Cliquer sur "modifier".
+    \\2. Saisir un nouveau mot de passe.
+    \\3. Cliquer sur "Enregister" pour la validation.
+    \\4. Le système valide la modification.\end{tabular} \\ 
+    \hline
+    \textbf{Post-condition} & Informations affichées. \\
+    \hline
+    \end{tabular}
+    \caption{Description textuelle de cas d'utilisation «Modifier mot de passe»}
+    \label{tab:useCase s'authentifier edit-pass}
+    \end{table}
+    
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%ù    
+\subsection{Diagramme de cas d’utilisation «Gérer Réclamation»}
+    La figure \ref{fig:diagramme-usecase-claim} présente le diagramme de cas d’utilisation "Gérer Réclamation" d’un utilisateur.
+    \begin{figure}[H]
+        \centering
+        \includegraphics[width=4.9in]{images/UseCase réclamation.png}
+        \caption{Diagramme de cas d’utilisation «Gérer réclamation»}
+        \label{fig:diagramme-usecase-claim}
+    \end{figure}
+    \newpage
+    Le tableau \ref{tab:useCase claim} décrit le cas d’utilisation «Gérer Réclamation» en détails en expliquant les scénarios.
+    \begin{table}[H]
+    \centering
+    \begin{tabular}{|R{4cm}||R{10cm}|} 
+    \hline
+    \textbf{Nom du cas d'utilisation} & Gérer les réclamation \\ 
+    \hline
+    \textbf{Acteurs} & Responsable et Client \\ 
+    \hline
+    \textbf{Description} & le responsable peut modifier le status des réclamation et client peut ajouter, modifier et supprimer réclamation. \\ 
+    \hline
+    \textbf{Pré-condition} & L'acteur doit connecté  \\ 
+    \hline
+    \textbf{Scénario nominal} & 
+    \begin{tabular}[c]{@{}l@{}} 1. L’utilisateur accède à la rubrique de réclamation.
+    \\2. Avoir le pouvoir d’ajout, supprimer et modifier 
+    \\en cliquant sur les buttons.\end{tabular} \\ 
+    \hline
+    \textbf{Post-condition} & Informations affichées ou mot de passe modifié. \\
+    \hline
+    \end{tabular}
+    \caption{Description textuelle de cas d'utilisation «Gérer Réclamation»}
+    \label{tab:useCase claim}
+    \end{table}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%ù    
+\subsection{Diagramme de cas d’utilisation «Gérer Tâches»}
+    La figure \ref{fig:diagramme-usecase-task} présente le diagramme de cas d’utilisation "Gérer taches" d’un utilisateur.
+    \begin{figure}[H]
+        \centering
+        \includegraphics[width=4.9in]{images/UseCase taches.png}
+        \caption{Diagramme de cas d’utilisation «Gérer tâches»}
+        \label{fig:diagramme-usecase-task}
+    \end{figure}
+    \newpage
+    Le tableau \ref{tab:useCase task} décrit le cas d’utilisation « Gérer tâches » en détails en expliquant les scénarios.
+    \begin{table}[H]
+    \centering
+    \begin{tabular}{|R{4cm}||R{10cm}|} 
+    \hline
+    \textbf{Nom du cas d'utilisation} & Gérer tâches \\ 
+    \hline
+    \textbf{Acteurs} & Responsable et Développeur \\ 
+    \hline
+    \textbf{Description} & Le développeur peut consulter son espace et modifier le statut des tâches et le responsable peut accéder à son espace et ajouter supprimer et modifier des tâches ou assigner les taches aux développeur. \\ 
+    \hline
+    \textbf{Pré-condition} & L'acteur doit connecté  \\ 
+    \hline
+    \textbf{Scénario nominal} & 
+    \begin{tabular}[c]{@{}l@{}} 1. L’utilisateur accède à la rubrique de tâche.
+    \\2. Avoir le pouvoir d’ajout, supprimer et modifier 
+    \\en cliquant sur les buttons. \end{tabular} \\ 
+    \hline
+    \textbf{Post-condition} & Une tache ajouté, modifié ou supprimé. \\
+    \hline
+    \end{tabular}
+    \caption{Description textuelle de cas d'utilisation «Gérer tâches»}
+    \label{tab:useCase task}
+    \end{table}
+    
+\section*{Conclusion}
+Dans ce chapitre on a présenté l’approche fonctionnelle de projet. En effet, on a parlé des besoins fonctionnels ainsi que les besoins non fonctionnels. Ensuite. Et pour commencer la partie réalisation il faut passer par une étude technique et conceptuelle. Cela fait le but du prochain chapitre. 
+
+

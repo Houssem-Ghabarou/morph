@@ -1,0 +1,249 @@
+\chapter{\textbf{Analyse préliminaire}}
+\newpage
+
+\section*{Introduction}
+Avant d'entamer le développement de Morph, il est indispensable de poser des bases solides en définissant clairement les besoins du système et les interactions attendues entre ses différents acteurs. Cette phase d'analyse préliminaire conditionne la cohérence de toute la conception qui suivra.
+
+Dans ce chapitre, nous identifions les acteurs qui gravitent autour de l'application, nous détaillons les besoins fonctionnels et non fonctionnels, puis nous les traduisons sous forme de diagrammes de cas d'utilisation. Ces diagrammes, produits conformément à la démarche 2TUP, offrent une vision structurée et globale du comportement attendu de Morph.
+
+\section{Spécification des besoins}
+
+    \subsection{Identification des acteurs}
+    Un acteur représente toute entité externe qui interagit directement avec le système. Dans le cadre de Morph, deux acteurs ont été identifiés.
+
+    \begin{itemize}
+        \item \raggedright \textbf{Utilisateur :} c'est l'acteur principal de l'application. Une fois authentifié, il dispose d'un accès complet à son espace de travail personnel. Il peut créer et gérer des sessions, envoyer des messages en langage naturel pour générer des structures de données, importer des fichiers CSV, visualiser ses données sur un canvas interactif et personnaliser son environnement. Chaque utilisateur ne peut accéder qu'à ses propres sessions et données, garantissant une isolation totale entre les comptes.
+
+        \item \raggedright \textbf{Système LLM :} il s'agit d'un acteur système externe. Morph lui délègue l'interprétation des messages en langage naturel de l'utilisateur pour générer le SQL adapté, détecter les schémas dans les fichiers CSV, analyser les données et produire des données d'exemple. Il n'est jamais exposé directement à l'utilisateur ; il agit en coulisse à chaque requête adressée au moteur d'intelligence artificielle.
+    \end{itemize}
+
+    \subsection{Identification des besoins}
+    La spécification des besoins constitue le point de départ incontournable de tout projet logiciel. Elle permet de circonscrire précisément ce que le système doit faire, d'éviter les dérives fonctionnelles en cours de développement et de garantir un langage commun entre les développeurs et les utilisateurs finaux. Nous distinguons ici les besoins fonctionnels, qui décrivent les fonctionnalités attendues, des besoins non fonctionnels, qui encadrent les contraintes de qualité du système.
+
+    \subsubsection{Les besoins fonctionnels}
+    Les besoins fonctionnels correspondent aux fonctionnalités que l'application doit impérativement offrir pour répondre aux attentes de ses utilisateurs. Ils constituent le cœur du cahier des charges et servent de référence tout au long du développement.
+    \newpage
+    Pour Morph, les besoins fonctionnels se déclinent de la façon suivante :
+
+    \begin{itemize}
+        \item \raggedright \textbf{Authentification et gestion du compte :}
+            \begin{itemize}
+                \item[$\ast$] \raggedright S'inscrire avec un email et un mot de passe.
+                \item[$\ast$] \raggedright Se connecter et accéder à son espace personnel.
+                \item[$\ast$] \raggedright Se déconnecter de manière sécurisée.
+                \item[$\ast$] \raggedright Modifier son mot de passe.
+            \end{itemize}
+
+        \item \raggedright \textbf{Gestion des sessions de travail :}
+            \begin{itemize}
+                \item[$\ast$] \raggedright Créer une nouvelle session (projet).
+                \item[$\ast$] \raggedright Renommer, supprimer et naviguer entre ses sessions.
+                \item[$\ast$] \raggedright Épingler une session en favori pour y accéder rapidement.
+                \item[$\ast$] \raggedright Restaurer automatiquement l'état d'une session (tables, messages, positions des cartes).
+            \end{itemize}
+
+        \item \raggedright \textbf{Interaction par chat en langage naturel :}
+            \begin{itemize}
+                \item[$\ast$] \raggedright Envoyer un message décrivant un besoin métier.
+                \item[$\ast$] \raggedright Créer ou modifier des tables PostgreSQL via le LLM.
+                \item[$\ast$] \raggedright Insérer des données dans les tables existantes.
+                \item[$\ast$] \raggedright Interroger les données avec une question en langage naturel.
+                \item[$\ast$] \raggedright Déclencher une analyse des données avec génération de graphiques et KPIs.
+                \item[$\ast$] \raggedright Générer des données d'exemple pour remplir une table.
+            \end{itemize}
+
+        \item \raggedright \textbf{Import et édition de données :}
+            \begin{itemize}
+                \item[$\ast$] \raggedright Importer un fichier CSV avec détection automatique du schéma.
+                \item[$\ast$] \raggedright Ajouter, modifier et supprimer des lignes dans une table.
+                \item[$\ast$] \raggedright Supprimer une table entière du canvas.
+            \end{itemize}
+
+        \item \raggedright \textbf{Visualisation et canvas :}
+            \begin{itemize}
+                \item[$\ast$] \raggedright Visualiser les tables sous forme de cartes interactives sur un canvas.
+                \item[$\ast$] \raggedright Déplacer et réorganiser les cartes par glisser-déposer.
+                \item[$\ast$] \raggedright Voir les relations entre tables sous forme de connecteurs visuels.
+                \item[$\ast$] \raggedright Consulter un tableau de bord dédié à chaque session.
+                \item[$\ast$] \raggedright Personnaliser le thème de l'interface (Sombre, Doux, Clair).
+            \end{itemize}
+    \end{itemize}
+
+    \subsubsection{Les besoins non fonctionnels}
+    \begin{itemize}
+        \item \raggedright \textbf{L'ergonomie :} Morph repose sur le concept de canvas vierge. L'interface doit être suffisamment intuitive pour qu'un utilisateur non technique puisse décrire son besoin métier et obtenir immédiatement un résultat exploitable, sans passer par aucune configuration manuelle. Le canvas interactif, le panneau de chat et la barre latérale doivent former un ensemble cohérent et agréable à utiliser.
+
+        \item \raggedright \textbf{La sécurité :} les données de chaque utilisateur doivent être strictement isolées des autres. L'authentification repose sur des jetons signés stockés dans des cookies \textit{httpOnly} pour prévenir les attaques XSS. Les routes de l'API backend sont protégées par un middleware de vérification qui s'exécute à chaque requête. Les tables dynamiques créées par le LLM sont préfixées par l'identifiant de session afin d'éviter tout accès croisé.
+
+        \item \raggedright \textbf{La performance :} la génération SQL doit s'exécuter en temps quasi-réel. La communication entre le frontend et le backend doit rester fluide même lorsque plusieurs tables sont présentes dans une session. Le chargement initial des sessions doit être rapide grâce à une récupération parallèle des schémas et des métadonnées.
+
+        \item \raggedright \textbf{La fiabilité :} le moteur de migration dynamique doit garantir qu'aucune perte de données n'intervient lors de la modification d'un schéma. Les erreurs générées par le LLM (SQL invalide, intention ambiguë) doivent être interceptées et traitées de façon transparente pour l'utilisateur, avec un message d'explication clair et une invitation à reformuler.
+    \end{itemize}
+
+\newpage
+\section{Diagramme de cas d'utilisation}
+    \subsection{Diagramme de cas d'utilisation général}
+    Le diagramme de cas d'utilisation général offre une vue d'ensemble des interactions entre l'utilisateur et le système. Il regroupe l'ensemble des fonctionnalités de Morph organisées par domaine fonctionnel et met en évidence les systèmes externes impliqués. La figure \ref{fig:diagramme-usecase-global} représente ce diagramme.
+    \vspace{8mm}
+    \begin{figure}[H]
+        \centering
+        \includegraphics[width=6.2in]{images/UseCase_Global.png}
+        \caption{Diagramme de cas d'utilisation général — Morph}
+        \label{fig:diagramme-usecase-global}
+    \end{figure}
+
+\newpage
+\subsection{Diagramme de cas d'utilisation raffiné «S'authentifier»}
+    La figure \ref{fig:diagramme-usecase-auth} présente le diagramme de cas d'utilisation raffiné du processus d'authentification. Il détaille les trois sous-cas principaux (inscription, connexion, déconnexion) ainsi que les étapes de validation qui leur sont associées.
+    \begin{figure}[H]
+        \centering
+        \includegraphics[width=5.2in]{images/UseCase_Auth_Detaille.png}
+        \caption{Diagramme de cas d'utilisation raffiné «S'authentifier»}
+        \label{fig:diagramme-usecase-auth}
+    \end{figure}
+
+    Le tableau \ref{tab:useCase-auth} décrit en détail le cas d'utilisation «S'authentifier» en exposant les scénarios nominal et alternatifs.
+    \begin{table}[H]
+    \centering
+    \begin{tabular}{|R{4cm}||R{10cm}|}
+    \hline
+    \textbf{Nom du cas d'utilisation} & S'authentifier \\
+    \hline
+    \textbf{Acteurs} & Utilisateur \\
+    \hline
+    \textbf{Description} & L'utilisateur peut créer un nouveau compte, se connecter à un compte existant ou se déconnecter. Toutes les fonctionnalités protégées de l'application nécessitent une authentification valide préalablement vérifiée par le système. \\
+    \hline
+    \textbf{Pré-condition} & Aucune (pour l'inscription et la connexion). \\
+    \hline
+    \textbf{Scénario nominal} &
+    \begin{tabular}[c]{@{}p{9.5cm}@{}}
+    1. L'utilisateur accède à la page de connexion ou d'inscription. \\
+    2. Il saisit son adresse email et son mot de passe. \\
+    3. Pour l'inscription, il confirme le mot de passe. \\
+    4. Le système valide le format de l'email et la longueur du mot de passe (minimum 6 caractères). \\
+    5. Le système crée la session et redirige l'utilisateur vers son espace de travail.
+    \end{tabular} \\
+    \hline
+    \textbf{Scénario alternatif} &
+    \begin{tabular}[c]{@{}p{9.5cm}@{}}
+    2.1 : L'email est déjà utilisé lors de l'inscription. \\
+    \hspace{1em}- Le système affiche un message d'erreur explicite. \\
+    3.1 : Le mot de passe et sa confirmation ne correspondent pas. \\
+    \hspace{1em}- Le système bloque la soumission du formulaire. \\
+    4.1 : Les identifiants sont incorrects lors de la connexion. \\
+    \hspace{1em}- Le système affiche un message d'erreur générique.
+    \end{tabular} \\
+    \hline
+    \textbf{Post-condition} & L'utilisateur est authentifié et accède à son espace personnel. Ses sessions et données lui sont exclusivement accessibles. \\
+    \hline
+    \end{tabular}
+    \caption{Description textuelle du cas d'utilisation «S'authentifier»}
+    \label{tab:useCase-auth}
+    \end{table}
+
+\newpage
+\subsection{Diagramme de cas d'utilisation raffiné «Importer un fichier CSV»}
+    La figure \ref{fig:diagramme-usecase-import} présente le diagramme de cas d'utilisation raffiné du processus d'import CSV. Ce cas d'utilisation se déroule en quatre phases successives : sélection du fichier, analyse automatique par l'IA, prévisualisation et validation par l'utilisateur, puis insertion des données en base.
+    \begin{figure}[H]
+        \centering
+        \includegraphics[width=5.2in]{images/UseCase_Import_CSV.png}
+        \caption{Diagramme de cas d'utilisation raffiné «Importer un fichier CSV»}
+        \label{fig:diagramme-usecase-import}
+    \end{figure}
+
+    \newpage
+    Le tableau \ref{tab:useCase-import} décrit en détail le déroulement de ce cas d'utilisation.
+    \begin{table}[H]
+    \centering
+    \begin{tabular}{|R{4cm}||R{10cm}|}
+    \hline
+    \textbf{Nom du cas d'utilisation} & Importer un fichier CSV \\
+    \hline
+    \textbf{Acteurs} & Utilisateur, Système LLM \\
+    \hline
+    \textbf{Description} & L'utilisateur sélectionne un fichier CSV à importer. Le système analyse automatiquement sa structure grâce au système LLM, qui détecte les types de colonnes adaptés et compare avec les tables existantes pour proposer un flux d'import cohérent. L'utilisateur valide ou ajuste le schéma proposé avant de confirmer l'insertion des données. \\
+    \hline
+    \textbf{Pré-condition} & L'utilisateur est authentifié. Une session de travail est active. \\
+    \hline
+    \textbf{Scénario nominal} &
+    \begin{tabular}[c]{@{}p{9.5cm}@{}}
+    1. L'utilisateur ouvre la fenêtre d'import CSV. \\
+    2. Il sélectionne le fichier et fournit une description optionnelle de son contenu. \\
+    3. Le système analyse la structure du fichier (en-têtes, types de données, aperçu des lignes). \\
+    4. Le système LLM suggère automatiquement les types de colonnes et compare aux tables existantes de la session. \\
+    5. L'utilisateur prévisualise le mapping et l'ajuste si besoin. \\
+    6. Il choisit de créer une nouvelle table ou d'alimenter une table existante. \\
+    7. Le système insère les données par lots et affiche la table sur le canvas.
+    \end{tabular} \\
+    \hline
+    \textbf{Scénario alternatif} &
+    \begin{tabular}[c]{@{}p{9.5cm}@{}}
+    3.1 : Le fichier CSV est vide ou malformé. \\
+    \hspace{1em}- Le système affiche un message d'erreur et stoppe le processus. \\
+    7.1 : Une erreur survient lors de l'insertion des données. \\
+    \hspace{1em}- Le système annule la transaction et signale l'erreur à l'utilisateur.
+    \end{tabular} \\
+    \hline
+    \textbf{Post-condition} & Les données du fichier CSV sont insérées dans une table PostgreSQL de la session. La table apparaît sur le canvas et est immédiatement interrogeable via le chat. \\
+    \hline
+    \end{tabular}
+    \caption{Description textuelle du cas d'utilisation «Importer un fichier CSV»}
+    \label{tab:useCase-import}
+    \end{table}
+
+\newpage
+\subsection{Diagramme de cas d'utilisation raffiné «Gérer les sessions»}
+    La figure \ref{fig:diagramme-usecase-session} présente le diagramme de cas d'utilisation raffiné de la gestion des sessions. Une session représente un espace de travail isolé contenant ses propres tables, ses messages de chat et la configuration du canvas. Ce cas d'utilisation couvre l'ensemble des opérations que l'utilisateur peut effectuer sur ses sessions.
+    \begin{figure}[H]
+        \centering
+        \includegraphics[width=5.2in]{images/UseCase_Gestion_Sessions.png}
+        \caption{Diagramme de cas d'utilisation raffiné «Gérer les sessions»}
+        \label{fig:diagramme-usecase-session}
+    \end{figure}
+
+    \newpage
+    Le tableau \ref{tab:useCase-session} décrit en détail le cas d'utilisation «Gérer les sessions».
+    \begin{table}[H]
+    \centering
+    \begin{tabular}{|R{4cm}||R{10cm}|}
+    \hline
+    \textbf{Nom du cas d'utilisation} & Gérer les sessions \\
+    \hline
+    \textbf{Acteurs} & Utilisateur, Système LLM \\
+    \hline
+    \textbf{Description} & L'utilisateur peut créer, renommer, supprimer, épingler et naviguer entre ses sessions de travail. Chaque session conserve l'intégralité de son état : les tables créées par le LLM, l'historique des messages et les positions des cartes sur le canvas. Lors d'un changement de session, le système restaure cet état automatiquement. \\
+    \hline
+    \textbf{Pré-condition} & L'utilisateur est authentifié. \\
+    \hline
+    \textbf{Scénario nominal} &
+    \begin{tabular}[c]{@{}p{9.5cm}@{}}
+    1. L'utilisateur accède à la barre latérale de navigation. \\
+    2. Il peut créer une nouvelle session via le bouton dédié. \\
+    3. Le canvas est réinitialisé pour la nouvelle session. \\
+    4. Lors du premier message envoyé, le système LLM nomme automatiquement la session selon le contexte métier. \\
+    5. L'utilisateur peut naviguer vers une session existante. \\
+    6. Le système restaure les tables, les messages et les positions des cartes de cette session.
+    \end{tabular} \\
+    \hline
+    \textbf{Scénario alternatif} &
+    \begin{tabular}[c]{@{}p{9.5cm}@{}}
+    2.1 : L'utilisateur renomme manuellement une session. \\
+    \hspace{1em}- Le nouveau nom est sauvegardé immédiatement. \\
+    3.1 : L'utilisateur demande la suppression d'une session. \\
+    \hspace{1em}- Le système demande une confirmation. \\
+    \hspace{1em}- En cas de validation, toutes les tables dynamiques associées sont supprimées en cascade.
+    \end{tabular} \\
+    \hline
+    \textbf{Post-condition} & La session est créée, modifiée ou supprimée. Le canvas reflète l'état exact de la session active. \\
+    \hline
+    \end{tabular}
+    \caption{Description textuelle du cas d'utilisation «Gérer les sessions»}
+    \label{tab:useCase-session}
+    \end{table}
+
+\section*{Conclusion}
+Ce chapitre a posé les fondations analytiques du projet Morph. Nous avons défini les acteurs impliqués, précisé les besoins fonctionnels et non fonctionnels, puis modélisé les principaux cas d'utilisation sous forme de diagrammes UML. Ces diagrammes constituent la branche fonctionnelle de la démarche 2TUP adoptée dans ce projet.
+
+L'analyse révèle que Morph repose sur deux acteurs : l'utilisateur authentifié, qui pilote l'ensemble des interactions, et le système LLM, qui assure l'intelligence applicative en interprétant les requêtes en langage naturel. Les fonctionnalités identifiées couvrent un spectre large, du chat en langage naturel à l'import de données en passant par la gestion des sessions, ce qui confirme la richesse fonctionnelle du système à concevoir.
+
+Le prochain chapitre abordera la conception technique et architecturale du système, en s'appuyant sur ces besoins pour définir les choix technologiques et la structure de l'application.

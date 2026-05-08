@@ -19,7 +19,9 @@
       "Bash(Select-Object Name, FullName)",
       "Bash(Format-Table -AutoSize)",
       "Bash(Get-ChildItem \"c:\\\\Users\\\\imxro\\\\Desktop\\\\Morph\\\\llm\" -Recurse -Name)",
-      "Bash(node -e \"const c = require\\('./node_modules/next/dist/lib/constants'\\); console.log\\('PROXY:', c.PROXY_FILENAME, 'MW:', c.MIDDLEWARE_FILENAME\\)\")"
+      "Bash(node -e \"const c = require\\('./node_modules/next/dist/lib/constants'\\); console.log\\('PROXY:', c.PROXY_FILENAME, 'MW:', c.MIDDLEWARE_FILENAME\\)\")",
+      "Bash(ls \"C:\\\\Users\\\\imxro\\\\.claude\\\\projects\\\\c--Users-imxro-Desktop-Morph\\\\\" 2>/dev/null || echo \"Directory does not exist\")",
+      "Read(//c/Users/imxro/.claude/projects/c--Users-imxro-Desktop-Morph\" 2>/dev/**)"
     ]
   }
 }
