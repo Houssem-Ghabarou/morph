@@ -87,7 +87,7 @@ Dans ce chapitre, nous identifions les acteurs qui gravitent autour de l'applica
     \vspace{8mm}
     \begin{figure}[H]
         \centering
-        \includegraphics[width=6.2in]{images/UseCase_Global.png}
+        \includegraphics[width=\textwidth]{images/UseCase_Global.png}
         \caption{Diagramme de cas d'utilisation général — Morph}
         \label{fig:diagramme-usecase-global}
     \end{figure}
@@ -97,7 +97,7 @@ Dans ce chapitre, nous identifions les acteurs qui gravitent autour de l'applica
     La figure \ref{fig:diagramme-usecase-auth} présente le diagramme de cas d'utilisation raffiné du processus d'authentification. Il détaille les trois sous-cas principaux (inscription, connexion, déconnexion) ainsi que les étapes de validation qui leur sont associées.
     \begin{figure}[H]
         \centering
-        \includegraphics[width=5.2in]{images/UseCase_Auth_Detaille.png}
+        \includegraphics[width=\textwidth, height=4.5in, keepaspectratio]{images/UseCase_Auth_Detaille.png}
         \caption{Diagramme de cas d'utilisation raffiné «S'authentifier»}
         \label{fig:diagramme-usecase-auth}
     \end{figure}
@@ -146,7 +146,7 @@ Dans ce chapitre, nous identifions les acteurs qui gravitent autour de l'applica
     La figure \ref{fig:diagramme-usecase-import} présente le diagramme de cas d'utilisation raffiné du processus d'import CSV. Ce cas d'utilisation se déroule en quatre phases successives : sélection du fichier, analyse automatique par l'IA, prévisualisation et validation par l'utilisateur, puis insertion des données en base.
     \begin{figure}[H]
         \centering
-        \includegraphics[width=5.2in]{images/UseCase_Import_CSV.png}
+        \includegraphics[width=\textwidth, height=4.5in, keepaspectratio]{images/UseCase_Import_CSV.png}
         \caption{Diagramme de cas d'utilisation raffiné «Importer un fichier CSV»}
         \label{fig:diagramme-usecase-import}
     \end{figure}
@@ -196,7 +196,7 @@ Dans ce chapitre, nous identifions les acteurs qui gravitent autour de l'applica
     La figure \ref{fig:diagramme-usecase-session} présente le diagramme de cas d'utilisation raffiné de la gestion des sessions. Une session représente un espace de travail isolé contenant ses propres tables, ses messages de chat et la configuration du canvas. Ce cas d'utilisation couvre l'ensemble des opérations que l'utilisateur peut effectuer sur ses sessions.
     \begin{figure}[H]
         \centering
-        \includegraphics[width=5.2in]{images/UseCase_Gestion_Sessions.png}
+        \includegraphics[width=\textwidth, height=4.5in, keepaspectratio]{images/UseCase_Gestion_Sessions.png}
         \caption{Diagramme de cas d'utilisation raffiné «Gérer les sessions»}
         \label{fig:diagramme-usecase-session}
     \end{figure}
