@@ -85,6 +85,30 @@ function quoteReservedColumnNames(sql: string): string {
 }
 
 /**
+ * Fix column casing mismatches: if a column was created as "clientId" (quoted,
+ * case-preserved) but Claude queries it as "clientid" (unquoted, lowercased by PG),
+ * this function replaces the lowercase reference with the properly-quoted exact name.
+ *
+ * Builds a map of lowercase → exact column name for all known columns,
+ * then replaces any bare word-boundary match that differs only in case.
+ */
+function fixColumnCasing(sql: string, knownColumns: string[]): string {
+  // Only mixed-case column names need fixing
+  const mixedCase = knownColumns.filter((c) => c !== c.toLowerCase());
+  if (mixedCase.length === 0) return sql;
+
+  let fixed = sql;
+  for (const exact of mixedCase) {
+    const lower = exact.toLowerCase();
+    // Replace unquoted lowercase occurrence with properly-quoted exact name
+    // Negative lookbehind/ahead for double-quote to avoid re-quoting already-quoted refs
+    const pattern = new RegExp(`(?<!")\\b${lower}\\b(?!")`, 'gi');
+    fixed = fixed.replace(pattern, `"${exact}"`);
+  }
+  return fixed;
+}
+
+/**
  * Post-process SELECT SQL for accurate text matching:
  * - Person/name columns (name, client, customer, employee, user, member, student, contact):
  *     col = 'value'  →  col ILIKE '%value%'   (partial match, handles full names)
@@ -145,13 +169,14 @@ function rewriteSQLForSession(
     let result = sql;
     const sorted = [...tableMap.entries()].sort((a, b) => b[0].length - a[0].length);
     for (const [display, actual] of sorted) {
-      result = result.replace(new RegExp(`\\b${display}\\b`, 'g'), actual);
+      // Negative lookbehind for '.' prevents replacing alias.column references
+      result = result.replace(new RegExp(`(?<!\\.)\\b${display}\\b`, 'g'), actual);
     }
     // Prefix the new table name itself
     if (!raw.startsWith(prefix)) {
       const actual = prefix + raw;
       tableMap.set(raw, actual);
-      result = result.replace(new RegExp(`\\b${raw}\\b`, 'g'), actual);
+      result = result.replace(new RegExp(`(?<!\\.)\\b${raw}\\b`, 'g'), actual);
     }
     return result;
   }
@@ -159,7 +184,8 @@ function rewriteSQLForSession(
   let result = sql;
   const sorted = [...tableMap.entries()].sort((a, b) => b[0].length - a[0].length);
   for (const [display, actual] of sorted) {
-    result = result.replace(new RegExp(`\\b${display}\\b`, 'g'), actual);
+    // Negative lookbehind for '.' prevents replacing alias.column references
+    result = result.replace(new RegExp(`(?<!\\.)\\b${display}\\b`, 'g'), actual);
   }
   return result;
 }
@@ -336,6 +362,8 @@ export default async function chatRoutes(fastify: FastifyInstance) {
       // display_name -> actual_db_name (actual names are prefixed with session prefix)
       const tableMap = new Map<string, string>();
       let sessionContext = '';
+      // All known column names — used by fixColumnCasing to quote mixed-case identifiers
+      let allColumnNames: string[] = [];
       try {
         const sessionTables = await query(
           `SELECT table_name FROM morph_session_tables WHERE session_id = $1`,
@@ -385,6 +413,7 @@ export default async function chatRoutes(fastify: FastifyInstance) {
           }
 
           sessionContext = `Tables already in this session:\n${schemaLines.join('\n')}${relSection}`;
+          allColumnNames = allSchemas.flatMap((s) => s.columns.map((c) => c.name));
         }
       } catch {
         // Context is best-effort — don't block the request
@@ -988,19 +1017,45 @@ export default async function chatRoutes(fastify: FastifyInstance) {
 
       if (action === 'select') {
         sql = makeSelectCaseInsensitive(sql);
+        sql = fixColumnCasing(sql, allColumnNames);
         let rows: Record<string, unknown>[] = [];
         try {
           const result = await query(sql);
           rows = result.rows;
         } catch (err) {
-          fastify.log.error(err);
-          const errMsg = 'I couldn\'t run that query. Try rephrasing — for example, "show me all [table]" or "total [column] by [group]".';
-          await runInTransaction(async (client) => {
-            await client.query(`INSERT INTO morph_messages (session_id, role, text) VALUES ($1, 'user', $2)`, [sessionId, message]);
-            await client.query(`INSERT INTO morph_messages (session_id, role, text) VALUES ($1, 'system', $2)`, [sessionId, errMsg]);
-            await client.query(`UPDATE morph_sessions SET updated_at = NOW() WHERE id = $1`, [sessionId]);
-          });
-          return reply.send({ sql, message: errMsg, schema: null, action: 'unknown' } satisfies ChatResponse);
+          const pgErr = err as { code?: string };
+          // 42703 = column does not exist — likely a casing mismatch (e.g. clientId vs clientid)
+          // Retry once with a fresh schema lookup and aggressive column quoting
+          if (pgErr.code === '42703') {
+            try {
+              const freshCols: string[] = [];
+              for (const tbl of tableMap.values()) {
+                const cols = await getTableSchema(tbl);
+                cols.forEach((c) => freshCols.push(c.column_name));
+              }
+              const retrySql = fixColumnCasing(sql, freshCols);
+              const retryResult = await query(retrySql);
+              rows = retryResult.rows;
+            } catch (retryErr) {
+              fastify.log.error(retryErr);
+              const errMsg = 'I couldn\'t run that query. Try rephrasing — for example, "show me all [table]" or "total [column] by [group]".';
+              await runInTransaction(async (client) => {
+                await client.query(`INSERT INTO morph_messages (session_id, role, text) VALUES ($1, 'user', $2)`, [sessionId, message]);
+                await client.query(`INSERT INTO morph_messages (session_id, role, text) VALUES ($1, 'system', $2)`, [sessionId, errMsg]);
+                await client.query(`UPDATE morph_sessions SET updated_at = NOW() WHERE id = $1`, [sessionId]);
+              });
+              return reply.send({ sql, message: errMsg, schema: null, action: 'unknown' } satisfies ChatResponse);
+            }
+          } else {
+            fastify.log.error(err);
+            const errMsg = 'I couldn\'t run that query. Try rephrasing — for example, "show me all [table]" or "total [column] by [group]".';
+            await runInTransaction(async (client) => {
+              await client.query(`INSERT INTO morph_messages (session_id, role, text) VALUES ($1, 'user', $2)`, [sessionId, message]);
+              await client.query(`INSERT INTO morph_messages (session_id, role, text) VALUES ($1, 'system', $2)`, [sessionId, errMsg]);
+              await client.query(`UPDATE morph_sessions SET updated_at = NOW() WHERE id = $1`, [sessionId]);
+            });
+            return reply.send({ sql, message: errMsg, schema: null, action: 'unknown' } satisfies ChatResponse);
+          }
         }
 
         const columns = rows.length > 0 ? Object.keys(rows[0]) : [];

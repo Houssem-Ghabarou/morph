@@ -18,7 +18,8 @@
       "Bash(grep -rho '\\\\[#[0-9a-fA-F]\\\\{3,8\\\\}\\\\]' components/ app/)",
       "Bash(Select-Object Name, FullName)",
       "Bash(Format-Table -AutoSize)",
-      "Bash(Get-ChildItem \"c:\\\\Users\\\\imxro\\\\Desktop\\\\Morph\\\\llm\" -Recurse -Name)"
+      "Bash(Get-ChildItem \"c:\\\\Users\\\\imxro\\\\Desktop\\\\Morph\\\\llm\" -Recurse -Name)",
+      "Bash(node -e \"const c = require\\('./node_modules/next/dist/lib/constants'\\); console.log\\('PROXY:', c.PROXY_FILENAME, 'MW:', c.MIDDLEWARE_FILENAME\\)\")"
     ]
   }
 }

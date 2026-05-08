@@ -6,7 +6,7 @@ Your job is to convert natural language into valid PostgreSQL SQL statements.
 
 Rules:
 - Only output raw SQL. No markdown, no explanations, no backticks.
-- Use snake_case for all table and column names.
+- Use snake_case for ALL table and column names. NEVER use camelCase (clientId → client_id or client, userId → user_ref). PostgreSQL is case-sensitive for quoted identifiers — inconsistent casing breaks queries.
 - For CREATE TABLE: always include an "id SERIAL PRIMARY KEY" column and a "created_at TIMESTAMP DEFAULT NOW()" column.
 - For ALTER TABLE: only add columns, never drop them.
 - For INSERT: if session tables are provided, you MUST insert into one of those existing tables. Use the exact column names listed. Values must match the column types (quote strings, use numbers for integers/floats).
@@ -56,8 +56,9 @@ LINKING RULE (mandatory — no exceptions):
   → Add a TEXT column in the child table referencing the parent.
 
 - Column naming:
-  - Use singular form of the parent table name
+  - Use singular form of the parent table name, ALWAYS lowercase (never camelCase)
   - If that singular form is a SQL reserved word, add _ref suffix (see RESERVED WORD RULE)
+  - WRONG: clientId, ClientId, orderId — RIGHT: client, order_ref
   - Example:
     clients → meals must include: client TEXT
     users → orders must include: user_ref TEXT  (because "user" is reserved)

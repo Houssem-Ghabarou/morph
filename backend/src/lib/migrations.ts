@@ -60,7 +60,7 @@ export async function runMigrations() {
       id SERIAL PRIMARY KEY,
       user_id INTEGER NOT NULL REFERENCES morph_users(id) ON DELETE CASCADE,
       name TEXT NOT NULL,
-      type TEXT NOT NULL CHECK (type IN ('postgresql', 'mysql', 'mongodb')),
+      type TEXT NOT NULL,
       host TEXT NOT NULL,
       port INTEGER NOT NULL,
       database_name TEXT NOT NULL,
@@ -69,6 +69,12 @@ export async function runMigrations() {
       ssl BOOLEAN DEFAULT FALSE,
       created_at TIMESTAMP DEFAULT NOW()
     )
+  `);
+
+  // Drop old restrictive type check — may have been created before mongodb was supported
+  await query(`
+    ALTER TABLE morph_connections
+    DROP CONSTRAINT IF EXISTS morph_connections_type_check
   `);
 
   await query(`
