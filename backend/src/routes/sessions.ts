@@ -28,8 +28,18 @@ async function getRelationsForTables(tableNames: string[]): Promise<Relation[]> 
       const colNorm   = col.toLowerCase();
       const colBase   = colNorm.endsWith('_ref') ? colNorm.slice(0, -4) : colNorm;
       const otherBase = other.replace(/^s\d+_/, '').toLowerCase();
+      const otherParts = otherBase.split('_');
+      const otherLast  = otherParts[otherParts.length - 1] ?? otherBase;
 
-      if (colBase === otherBase || colBase + 's' === otherBase || colBase === otherBase + 's') {
+      if (
+        colBase === otherBase ||
+        colBase + 's' === otherBase ||
+        colBase + 'es' === otherBase ||
+        colBase === otherBase + 's' ||
+        otherLast === colBase ||
+        otherLast === colBase + 's' ||
+        otherLast === colBase + 'es'
+      ) {
         relations.push({ from: tbl, to: other, on: col });
         break;
       }

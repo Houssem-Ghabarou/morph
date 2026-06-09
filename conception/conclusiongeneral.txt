@@ -1,0 +1,17 @@
+\Conclusion{Conclusion générale et perspectives}
+\lhead{Conclusion générale}
+\rhead{}
+\vspace{-3mm}
+\PARstart{C}{e} projet de fin d'études a porté sur la conception et le développement de Morph, une plateforme web qui permet à un utilisateur non technique de créer, d'alimenter et d'interroger une véritable base de données simplement en exprimant son besoin en langage naturel. La combinaison d'un modèle de langage, d'une base PostgreSQL et d'un canvas interactif nous a permis d'aboutir à une solution capable de transformer une intention métier en une structure de données exploitable, sans demander à l'utilisateur la moindre compétence technique.
+
+\vspace{6mm}
+Pour mener à bien ce travail, nous avons d'abord situé le projet dans son contexte, étudié les solutions existantes et dégagé la problématique à laquelle Morph répond. Nous avons ensuite suivi la démarche 2TUP en spécifiant les besoins fonctionnels et non fonctionnels, puis en modélisant les principaux cas d'utilisation à l'aide de diagrammes UML. Nous avons enfin conçu l'architecture de l'application et réalisé l'ensemble de ses fonctionnalités, du chat en langage naturel à la visualisation des données sur le canvas, en passant par l'import de fichiers CSV et la connexion à des bases externes.
+
+\vspace{6mm}
+Ce projet a constitué une véritable opportunité d'apprentissage. Il nous a permis de maîtriser de nouvelles technologies telles que Next.js, Fastify et PostgreSQL, et surtout d'intégrer un modèle de langage au cœur d'une application réelle, un domaine encore récent et particulièrement stimulant.
+
+\vspace{6mm}
+L'atout majeur de Morph réside dans son caractère extensible et modulaire, ce qui ouvre la voie à de nombreuses perspectives d'évolution. Parmi celles-ci, nous pouvons citer la collaboration en temps réel entre plusieurs utilisateurs sur une même session, l'export des données et des tableaux de bord vers des formats standards, la prise en charge de sources de données supplémentaires au-delà du CSV, l'enrichissement des visualisations proposées sur le canvas, ainsi que l'ajout d'un système de notifications pour suivre les modifications apportées aux données.
+
+\vspace{6mm}
+Enfin, ce stage a représenté une riche expérience humaine et professionnelle, à travers le contact avec l'équipe de la société iMaxeam, qui nous a accompagnés tout au long de la réalisation de ce projet.

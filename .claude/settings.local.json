@@ -21,7 +21,14 @@
       "Bash(Get-ChildItem \"c:\\\\Users\\\\imxro\\\\Desktop\\\\Morph\\\\llm\" -Recurse -Name)",
       "Bash(node -e \"const c = require\\('./node_modules/next/dist/lib/constants'\\); console.log\\('PROXY:', c.PROXY_FILENAME, 'MW:', c.MIDDLEWARE_FILENAME\\)\")",
       "Bash(ls \"C:\\\\Users\\\\imxro\\\\.claude\\\\projects\\\\c--Users-imxro-Desktop-Morph\\\\\" 2>/dev/null || echo \"Directory does not exist\")",
-      "Read(//c/Users/imxro/.claude/projects/c--Users-imxro-Desktop-Morph\" 2>/dev/**)"
+      "Read(//c/Users/imxro/.claude/projects/c--Users-imxro-Desktop-Morph\" 2>/dev/**)",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\imxro\\\\Desktop\\\\Morph\" -Recurse -Depth 2)",
+      "Bash(Select-Object FullName)",
+      "Bash(curl -s http://localhost:3001/api/sessions)",
+      "Bash(curl -s http://localhost:3001/api/auth/me)",
+      "Bash(node backend/test-nordfab.js)",
+      "Bash(grep -iE \"\\\\.txt$|\\\\.tex$\")",
+      "Bash(python -c ' *)"
     ]
   }
 }

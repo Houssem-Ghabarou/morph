@@ -1,0 +1,24 @@
+\thispagestyle{plain}
+\lhead{Remerciements}
+\rhead{}
+
+\vspace*{1.5cm}
+\begin{flushright}
+    {\LARGE \bfseries Remerciements}\\[3mm]
+    \rule{0.35\textwidth}{1pt}
+\end{flushright}
+\vspace{1.5cm}
+
+\large
+Tout travail est l'élaboration de l'effort de plusieurs individus, et je saisis cette occasion pour exprimer mes vifs remerciements :
+
+\vspace{4mm}
+Mon encadrant académique Docteur \textbf{Imed Boudriga}, pour la qualité de son encadrement, son encouragement et ses conseils qui m'ont été très bénéfiques.
+
+\vspace{4mm}
+Toute l'équipe de l'entreprise \textbf{iMAXEAM} pour l'expérience enrichissante et pleine d'intérêt qu'elle m'a fait vivre durant ces mois de stage, et particulièrement mon encadrant \textbf{M. Mahdi Nabli}, pour son suivi régulier, ses orientations, sa disponibilité, ses conseils et le temps qu'il m'a consacré durant ce stage afin d'atteindre les objectifs de ce projet dans les délais convenus.
+
+\vspace{4mm}
+Mon dernier mot s'adresse à tous \textbf{les membres du jury} pour l'honneur qu'ils me font de participer à l'examen de mon travail.
+
+\clearpage

@@ -1,0 +1,215 @@
+\chapter{\textbf{Réalisation de l'application}}
+\lhead{Réalisation de l'application}
+\rhead{}
+\newpage
+
+\section*{Introduction}
+Après avoir complété la partie Conception UML, nous nous concentrons maintenant sur la partie réalisation qui constitue la dernière étape de notre projet.
+
+Ce chapitre présente deux parties. Dans un premier temps, nous présentons l'environnement de développement ainsi que les choix technologiques retenus pour Morph. Dans un second temps, nous illustrons les différentes interfaces de l'application à travers des captures d'écran.
+
+\section{Environnement de travail}
+Cette partie présente les outils, les langages et les frameworks que nous avons exploités tout au long du développement de Morph.
+
+    \subsection{Outils utilisés}
+    Nous présentons dans ce qui suit les principaux outils logiciels qui nous ont accompagnés durant les phases de conception et de développement de Morph.
+    \begin{itemize}
+        \item \textbf{StarUML :} est un logiciel de modélisation UML (Unified Modeling Language) qui peut remplacer dans bien des situations des logiciels commerciaux et coûteux comme Rational Rose ou Together. Il propose des outils graphiques développés pour la réalisation des diagrammes comme ceux de cas d'utilisation, de séquence, de classes, etc [5].
+        \begin{figure}[H]
+            \centering
+            \includegraphics[width=1.6in]{images/StartUML.png}
+            \caption{Logo de StarUML}
+            \label{fig:startUML}
+        \end{figure}
+        \item \textbf{Figma :} est un outil de conception d'interface et d'expérience utilisateur collaboratif, fonctionnant directement dans le navigateur. Il permet de concevoir les maquettes filaires (wireframes) et de créer des prototypes interactifs avant la phase de développement [6].
+        \begin{figure}[H]
+            \centering
+            \includegraphics[width=2.5in]{images/Figma.png}
+            \caption{Logo de Figma}
+            \label{fig:Figma}
+        \end{figure}
+        \item \textbf{Visual Studio Code (VsCode) :} est un éditeur de code open-source développé par Microsoft, supportant un très grand nombre de langages grâce à des extensions. Il offre l'autocomplétion, la coloration syntaxique, le débogage, et l'intégration des commandes git [7].
+        \begin{figure}[H]
+            \centering
+            \includegraphics[width=2.5in]{images/vs-code.png}
+            \caption{Logo de Visual Studio Code}
+            \label{fig:vs-code}
+        \end{figure}
+        \item \textbf{Postman :} est une plateforme d'API pour la création et l'utilisation d'API. Elle simplifie chaque étape du cycle de vie des API et rationalise la collaboration afin de créer de meilleures API, plus rapidement. Nous l'avons utilisée pour tester les routes REST exposées par le backend de Morph [8].
+        \begin{figure}[H]
+            \centering
+            \includegraphics[width=2.2in]{images/Postman.png}
+            \caption{Logo de Postman}
+            \label{fig:postman}
+        \end{figure}
+        \item \textbf{pgAdmin :} est une interface graphique open-source d'administration et de gestion pour les bases de données PostgreSQL. Elle permet d'explorer les schémas, d'exécuter des requêtes SQL et de visualiser le contenu des tables dans un environnement visuel. Elle est disponible sous macOS, Windows et Linux [9].
+        \begin{figure}[H]
+            \centering
+            \includegraphics[width=1.9in]{images/pgadmin.png}
+            \caption{Logo de pgAdmin}
+            \label{fig:pgadmin}
+        \end{figure}
+        \item \textbf{Git :} est un logiciel permettant de suivre les modifications de n'importe quel ensemble de fichiers. Il est généralement utilisé pour coordonner le travail des programmeurs qui collaborent à l'élaboration du code source pendant le développement de logiciels. Ses objectifs sont la rapidité, l'intégrité des données et le support des flux de travail distribués et non linéaires (des milliers de branches parallèles fonctionnant sur des systèmes différents) [10].
+        \begin{figure}[H]
+            \centering
+            \includegraphics[width=2.2in]{images/git.png}
+            \caption{Logo de Git}
+            \label{fig:git}
+        \end{figure}
+    \end{itemize}
+
+    \subsection{Langages utilisés}
+    Le développement de Morph repose sur les langages suivants.
+    \begin{itemize}
+        \item \textbf{TypeScript :} est un langage de programmation open-source développé par Microsoft, qui étend JavaScript en y ajoutant un typage statique optionnel. Il améliore la fiabilité du code, facilite la détection des erreurs à la compilation et rend la maintenance plus aisée sur des projets de grande envergure. L'ensemble du code de Morph, côté frontend comme côté backend, est écrit en TypeScript [11].
+        \begin{figure}[H]
+            \centering
+            \includegraphics[width=1.5in]{images/typescript.png}
+            \caption{Logo de TypeScript}
+            \label{fig:ts}
+        \end{figure}
+        \item \textbf{TSX :} est une extension de la syntaxe TypeScript, héritée du JSX de React, qui permet d'écrire du balisage de type XML/HTML directement au sein du code TypeScript. Cette syntaxe est transformée par le compilateur en appels de fonctions standard que le moteur de rendu de React sait interpréter, garantissant à la fois la lisibilité des composants et la sûreté du typage.
+        \item \textbf{SQL :} est le langage standard d'interrogation et de manipulation des bases de données relationnelles. Dans Morph, le code SQL n'est pas écrit par l'utilisateur mais généré automatiquement par le modèle de langage, puis exécuté sur la base PostgreSQL pour créer les tables, insérer les données et répondre aux questions posées en langage naturel.
+    \end{itemize}
+
+    \subsection{Frameworks et technologies utilisés}
+    Pour bâtir l'application, nous nous sommes appuyés sur un ensemble de frameworks et de technologies modernes, décrits ci-dessous.
+    \begin{itemize}
+        \item \textbf{Next.js :} est un framework web open-source bâti sur React et développé par Vercel. Il prend en charge le rendu côté serveur, la génération de pages statiques et le routage par système de fichiers, ce qui en fait l'un des frameworks frontaux les plus utilisés pour construire des applications web modernes et performantes. Nous avons utilisé Next.js 16 pour développer l'interface de Morph [12].
+        \begin{figure}[H]
+            \centering
+            \includegraphics[width=2.3in]{images/nextjs.png}
+            \caption{Logo de Next.js}
+            \label{fig:nextjs}
+        \end{figure}
+        \item \textbf{React :} est une bibliothèque JavaScript de développement d'interfaces utilisateur, maintenue par Meta et une communauté de développeurs open-source. Fondée sur une approche par composants et un DOM virtuel, elle facilite la création d'interfaces réactives et modulaires. Elle constitue le socle sur lequel repose Next.js [13].
+        \begin{figure}[H]
+            \centering
+            \includegraphics[width=2.3in]{images/ReactJS.png}
+            \caption{Logo de React}
+            \label{fig:reactjs}
+        \end{figure}
+        \item \textbf{Node.js :} est un environnement d'exécution open-source et multiplateforme permettant de créer des applications rapides et évolutives côté serveur. Il s'appuie sur le moteur JavaScript V8 et utilise une architecture d'E/S non bloquante et pilotée par les événements, ce qui le rend efficace et adapté aux applications en temps réel [14].
+        \begin{figure}[H]
+            \centering
+            \includegraphics[width=2.2in]{images/nodejs.png}
+            \caption{Logo de Node.js}
+            \label{fig:nodejs}
+        \end{figure}
+        \item \textbf{Fastify :} est un framework web open-source pour Node.js, reconnu pour ses performances élevées et sa faible surcharge. Il propose un système de plugins, une validation des schémas intégrée et une sérialisation JSON optimisée. Nous l'avons utilisé pour bâtir l'API REST du backend de Morph [15].
+        \begin{figure}[H]
+            \centering
+            \includegraphics[width=2.3in]{images/fastify.png}
+            \caption{Logo de Fastify}
+            \label{fig:fastify}
+        \end{figure}
+        \item \textbf{PostgreSQL :} est un système de gestion de base de données relationnelle objet, open-source et reconnu pour sa robustesse et sa conformité aux standards SQL. Dans Morph, c'est PostgreSQL qui héberge dynamiquement les tables générées à partir des requêtes en langage naturel des utilisateurs, chaque session disposant de ses propres tables isolées [16].
+        \begin{figure}[H]
+            \centering
+            \includegraphics[width=2.0in]{images/postgresql.png}
+            \caption{Logo de PostgreSQL}
+            \label{fig:postgresql}
+        \end{figure}
+        \item \textbf{Claude (Anthropic) :} est un modèle de langage de grande taille (LLM) développé par Anthropic, accessible via son SDK officiel. Il constitue le moteur d'intelligence artificielle de Morph : il interprète les messages en langage naturel de l'utilisateur, génère le SQL adapté, détecte les schémas des fichiers CSV importés et analyse les données pour produire graphiques et indicateurs [17].
+        \begin{figure}[H]
+            \centering
+            \includegraphics[width=2.3in]{images/claude.png}
+            \caption{Logo de Claude (Anthropic)}
+            \label{fig:claude}
+        \end{figure}
+        \item \textbf{Tailwind CSS :} est un framework CSS « utility-first » qui permet de composer rapidement des interfaces sur mesure directement depuis le balisage, sans quitter le code. Il nous a permis de mettre en place les trois thèmes visuels de Morph (clair, sombre et atténué) de manière cohérente et maintenable [18].
+        \begin{figure}[H]
+            \centering
+            \includegraphics[width=2.3in]{images/tailwind.png}
+            \caption{Logo de Tailwind CSS}
+            \label{fig:tailwind}
+        \end{figure}
+    \end{itemize}
+
+\newpage
+\section{Présentation de l'application}
+Dans cette section, nous présentons les principales interfaces de l'application Morph à travers une série de captures d'écran, accompagnées d'une brève description de leur rôle et des fonctionnalités qu'elles offrent à l'utilisateur.
+
+    \subsection{Interface d'authentification}
+    \begin{figure}[H]
+        \centering
+        \includegraphics[width=\textwidth, height=4.5in, keepaspectratio]{images/interface login.png}
+        \caption{Interface de connexion}
+        \label{fig:login}
+    \end{figure}
+    Comme toute application, la sécurité d'accès est essentielle. Pour accéder à Morph, chaque utilisateur doit tout d'abord s'authentifier. La figure \ref{fig:login} présente l'interface de connexion, accessible aux utilisateurs qui doivent saisir leur adresse e-mail et leur mot de passe. La session est ensuite maintenue de manière sécurisée par un jeton stocké dans un cookie.
+
+    \subsection{Interface d'inscription}
+    \begin{figure}[H]
+        \centering
+        \includegraphics[width=\textwidth, height=4.5in, keepaspectratio]{images/interface signup.png}
+        \caption{Interface d'inscription}
+        \label{fig:signup}
+    \end{figure}
+    Cette interface permet à un nouvel utilisateur de créer son compte en renseignant son adresse e-mail et un mot de passe. Une fois l'inscription validée, l'utilisateur dispose immédiatement de son propre espace de travail, totalement isolé des autres comptes.
+
+    \subsection{Interface principale de l'espace de travail}
+    \begin{figure}[H]
+        \centering
+        \includegraphics[width=\textwidth, height=4.5in, keepaspectratio]{images/interface workspace.png}
+        \caption{Interface principale de l'espace de travail}
+        \label{fig:workspace}
+    \end{figure}
+    Il s'agit de l'interface centrale de Morph. Elle réunit, à gauche, la barre latérale de navigation entre les sessions, au centre, le canvas interactif sur lequel s'affichent les tables et les visualisations, et à droite, le panneau de discussion en langage naturel. C'est depuis cet espace que l'utilisateur orchestre l'ensemble de ses activités.
+
+    \subsection{Interface de discussion en langage naturel}
+    \begin{figure}[H]
+        \centering
+        \includegraphics[width=\textwidth, height=4.5in, keepaspectratio]{images/interface chat.png}
+        \caption{Interface de discussion en langage naturel}
+        \label{fig:chat}
+    \end{figure}
+    Cette interface permet à l'utilisateur de décrire ses besoins métier en langage naturel. Le message est transmis au modèle Claude qui génère le SQL correspondant, crée ou modifie les tables PostgreSQL, insère des données ou répond à une question portant sur les données existantes. L'utilisateur n'a ainsi jamais besoin d'écrire la moindre ligne de SQL.
+
+    \subsection{Interface du canvas interactif}
+    \begin{figure}[H]
+        \centering
+        \includegraphics[width=\textwidth, height=4.5in, keepaspectratio]{images/interface canvas.png}
+        \caption{Interface du canvas interactif}
+        \label{fig:canvas}
+    \end{figure}
+    Le canvas affiche les données sous forme de cartes que l'utilisateur peut déplacer et organiser librement. Chaque table est présentée dans sa propre carte ; l'utilisateur peut y ajouter, modifier ou supprimer des lignes, et la disposition des cartes est automatiquement sauvegardée avec la session.
+
+    \subsection{Interface d'analyse des données}
+    \begin{figure}[H]
+        \centering
+        \includegraphics[width=\textwidth, height=4.5in, keepaspectratio]{images/interface analytics.png}
+        \caption{Interface d'analyse des données}
+        \label{fig:analytics}
+    \end{figure}
+    Cette interface présente les résultats d'analyse produits par le moteur d'intelligence artificielle. À partir d'une simple demande, Morph génère automatiquement des graphiques (histogrammes, courbes, etc.) ainsi que des indicateurs clés de performance (KPIs), offrant à l'utilisateur une vue synthétique et visuelle de ses données.
+
+    \subsection{Interface d'import de fichiers CSV}
+    \begin{figure}[H]
+        \centering
+        \includegraphics[width=\textwidth, height=4.5in, keepaspectratio]{images/interface import.png}
+        \caption{Interface d'import de fichiers CSV}
+        \label{fig:import}
+    \end{figure}
+    Cette interface permet à l'utilisateur d'importer un fichier CSV dans sa session. Le schéma des colonnes est détecté automatiquement et la table correspondante est créée dans PostgreSQL, puis affichée sur le canvas, sans aucune configuration manuelle.
+
+    \subsection{Interface de connexion à une base de données}
+    \begin{figure}[H]
+        \centering
+        \includegraphics[width=\textwidth, height=4.5in, keepaspectratio]{images/interface connection.png}
+        \caption{Interface de connexion à une base de données externe}
+        \label{fig:connection}
+    \end{figure}
+    Cette interface offre à l'utilisateur la possibilité de connecter une base de données externe à sa session. Une fois la connexion enregistrée, les données peuvent être synchronisées et exploitées dans Morph au même titre que les tables créées en langage naturel.
+
+    \subsection{Interface de modification du mot de passe}
+    \begin{figure}[H]
+        \centering
+        \includegraphics[width=0.6\textwidth, keepaspectratio]{images/interface password.png}
+        \caption{Interface de modification du mot de passe}
+        \label{fig:password}
+    \end{figure}
+    Cette fenêtre est accessible à tout utilisateur authentifié et lui permet de modifier en toute sécurité le mot de passe de son compte.
+
+\section*{Conclusion}
+Ce dernier chapitre a été consacré à la phase de réalisation. Dans la première partie, nous avons présenté les outils, les langages et les frameworks retenus pour le développement de Morph. Dans la deuxième partie, nous avons donné une vue finale du projet à travers des captures d'écran, afin de donner une idée claire de l'application Morph.

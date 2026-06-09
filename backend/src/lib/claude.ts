@@ -225,13 +225,18 @@ function buildPrompt(userMessage: string, sessionContext: string): string {
   return `${sessionContext}\n\nUser request: ${userMessage}`;
 }
 
-async function generateWithGroq(userMessage: string, sessionContext: string): Promise<string> {
+async function generateWithGroq(userMessage: string, sessionContext: string, conversationHistory: Anthropic.MessageParam[] = []): Promise<string> {
   const groq = getGroq();
+  const historyMessages = conversationHistory.map((m) => ({
+    role: m.role as 'user' | 'assistant',
+    content: typeof m.content === 'string' ? m.content : '',
+  }));
   const response = await groq.chat.completions.create({
     model: process.env.GROQ_MODEL ?? 'llama-3.3-70b-versatile',
     max_tokens: 2048,
     messages: [
       { role: 'system', content: SYSTEM_PROMPT },
+      ...historyMessages,
       { role: 'user', content: buildPrompt(userMessage, sessionContext) },
     ],
   });

@@ -1,0 +1,220 @@
+% ============================================================
+% AIWebBot - Main Report File
+% ============================================================
+
+\documentclass[12pt,ChapStyle1,oneside]{./Styles/Dea_Gsm}
+
+% ============================================================
+% Encoding & Fonts
+% ============================================================
+
+\usepackage[T1]{fontenc}
+
+% ============================================================
+% General Packages
+% ============================================================
+
+\usepackage{graphicx}
+\usepackage{pdfpages}
+\usepackage{xcolor,colortbl}
+
+% ============================================================
+% Mathematics
+% ============================================================
+
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsfonts}
+\usepackage{mathrsfs}
+\usepackage{bbm}
+
+% ============================================================
+% Tables & Layout
+% ============================================================
+
+\usepackage{array}
+\usepackage{longtable}
+\usepackage{multirow}
+\usepackage{hhline}
+\usepackage{pdflscape}
+\usepackage{enumitem}
+
+% ============================================================
+% Text & Formatting
+% ============================================================
+
+\usepackage{textcomp}
+\usepackage{setspace}
+\usepackage{ragged2e}
+\usepackage[normalem]{ulem}
+\usepackage{comment}
+
+% ============================================================
+% Figures & Floating Objects
+% ============================================================
+
+\usepackage{float}
+\usepackage{subfigure}
+\usepackage{rotating}
+
+% ============================================================
+% Links & URLs
+% ============================================================
+
+\usepackage{hyperref}
+\usepackage{url}
+
+\hypersetup{
+    colorlinks=true,
+    allcolors=black
+}
+
+% ============================================================
+% Additional Utilities
+% ============================================================
+
+\usepackage{pifont}
+\usepackage[listings]{tcolorbox}
+
+% ============================================================
+% Algorithms
+% ============================================================
+
+\usepackage[ruled,vlined,french,titlenumbered]{algorithm2e}
+
+% ============================================================
+% Chapter Style
+% ============================================================
+
+\usepackage[Lenny]{fncychap}
+
+% ============================================================
+% Mini Table of Contents
+% ============================================================
+
+\usepackage{minitoc}
+
+\mtcsettitle{minitoc}{Summary}
+\setcounter{minitocdepth}{1}
+\mtcsetrules{minitoc}{on}
+
+% ============================================================
+% Graphics Path
+% ============================================================
+
+\graphicspath{{./images/}}
+
+% ============================================================
+% Hyphenation
+% ============================================================
+
+\hyphenpenalty=10000
+
+% Avoid stretched vertical spacing on pages that contain figures/tables:
+% keep the blank space at the bottom of the page instead of spreading it
+% between paragraphs and section titles.
+\raggedbottom
+
+% ============================================================
+% Custom Column Type
+% ============================================================
+
+\newcolumntype{R}[1]{>{\RaggedRight}p{#1}}
+
+% ============================================================
+% Custom Colors
+% ============================================================
+
+\definecolor{s1}{HTML}{BCB6E3}
+\definecolor{s2}{HTML}{B6E0B6}
+\definecolor{s3}{HTML}{F7B2A6}
+\definecolor{s4}{HTML}{A4E0E0}
+
+% ============================================================
+% Document Start
+% ============================================================
+
+\begin{document}
+
+% ============================================================
+% Title & Lists Names
+% ============================================================
+
+% \includepdf[]{cover.pdf}
+\renewcommand{\contentsname}{Table des Matières}
+\renewcommand{\listfigurename}{Liste des figures}
+\renewcommand{\listtablename}{Liste des tableaux}
+
+% ============================================================
+% Preliminary Pages
+% ============================================================
+
+\pagenumbering{roman}
+
+% Uncomment if needed
+% \includepdf[pages=-]{cover.pdf}
+% \input{signature}
+
+\input{dedicace}
+\input{remerciement}
+\input{resume}
+\input{abstract}
+
+% ============================================================
+% Table of Contents
+% ============================================================
+
+\dominitoc
+
+\rhead{}
+
+% A \clearpage is issued before each \lhead change so that the *last* page
+% of the previous list is shipped out with its own header, instead of
+% inheriting the header of the section that follows.
+\clearpage
+\lhead{Table des Matières}
+\tableofcontents
+
+\clearpage
+\lhead{Liste des figures}
+\listoffigures
+
+\clearpage
+\lhead{Liste des tableaux}
+\listoftables
+
+\clearpage
+\input{lexique}
+
+\clearpage
+
+% ============================================================
+% Main Content
+% ============================================================
+
+\pagenumbering{arabic}
+\setcounter{page}{1}
+
+\input{introduction-générale}
+
+\begin{normalsize}
+
+\input{chapitre-1}
+\input{chapitre-2}
+\input{chapitre-3}
+\input{chapitre-4}
+
+\end{normalsize}
+
+% ============================================================
+% Conclusion & References
+% ============================================================
+
+\input{conclusion-générale}
+\input{netographie}
+
+% ============================================================
+% End Document
+% ============================================================
+
+\end{document}

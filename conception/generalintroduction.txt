@@ -1,0 +1,26 @@
+\Introduction{Introduction générale}
+\rhead{}
+\lhead{Introduction G\'en\'erale}
+\PARstart{L}es données sont aujourd'hui au cœur de la prise de décision dans toute entreprise. Pourtant, exploiter ces données reste une tâche difficile lorsqu'on ne maîtrise pas les langages techniques comme le SQL ou la conception de bases de données. Comme beaucoup d'autres, notre société « iMaxeam » constate que ses collaborateurs et ses clients, qui n'appartiennent pas toujours au domaine informatique, peinent à structurer, interroger et visualiser leurs données sans l'intervention permanente d'un développeur.
+
+\vspace{5mm}
+En général, pour répondre à ces besoins, on s'appuie sur des tableurs, sur des outils de reporting rigides ou sur la sollicitation directe d'une équipe technique. Mais ces méthodes ont montré leurs limites : les tableurs deviennent vite ingérables au-delà d'un certain volume, les outils existants imposent une structure figée et difficile à faire évoluer, et chaque nouvelle demande d'analyse doit passer par un développeur. Il en résulte une perte de temps considérable, équivalente à une perte d'argent, ainsi qu'une dépendance technique qui freine l'autonomie des utilisateurs métier.
+
+\vspace{5mm}
+C'est dans ce contexte, et dans le but de démocratiser l'accès aux données au sein de l'entreprise, que s'inscrit mon projet de fin d'études. J'ai conçu et développé une application web nommée « Morph », un système d'exploitation de données piloté par l'intelligence artificielle. L'objectif de ce projet consiste à permettre à n'importe quel utilisateur de décrire ses besoins en langage naturel : un modèle de langage (LLM) interprète alors la demande, génère le code SQL adapté, crée et alimente automatiquement les tables dans une base de données PostgreSQL, puis restitue les résultats sous forme de tables et de visualisations interactives sur un canvas. L'utilisateur peut ainsi importer des fichiers, interroger ses données, produire des graphiques et des indicateurs, sans écrire la moindre ligne de code. Ce rapport présente l'ensemble des étapes suivies pour développer la solution ; il est composé de quatre chapitres organisés comme suit :
+
+\begin{itemize}
+\vspace{2mm}
+\item Le premier chapitre se charge de présenter une idée générale sur la société d'accueil et l'environnement de stage, de situer le cadre général du travail, puis de mener une étude des solutions existantes ainsi que de la solution retenue ; nous y exposons enfin la méthodologie de conception adoptée pour la réalisation de ce travail.
+\vspace{2mm}
+\item Le deuxième chapitre présente l'analyse préliminaire et la spécification des besoins fonctionnels et non fonctionnels, et détaille les différents cas d'utilisation en illustrant quelques diagrammes UML.
+
+\vspace{2mm}
+\item Le troisième chapitre comporte l'analyse et la conception détaillée de l'application. Nous nous intéressons aux diagrammes de cas d'utilisation, de classes et de séquences.
+
+\vspace{2mm}
+\item Le quatrième chapitre décrit la réalisation de l'application, le choix des outils et des technologies de développement, ainsi que la phase d'implémentation, et présente les principales interfaces réalisées.
+\end{itemize}
+
+\vspace{5mm}
+\`A la fin, nous clôturons le présent rapport par une conclusion générale qui résume notre travail et nous exposons quelques perspectives qui peuvent l'enrichir.

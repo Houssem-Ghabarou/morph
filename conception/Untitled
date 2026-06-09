@@ -1,0 +1,26 @@
+\Introduction{Introduction générale}
+\rhead{}
+\lhead{Introduction G\'en\'erale}
+\PARstart{L}'interaction avec le client dans les différentes phases du projet et la déclaration des anomalies trouvées est une tache difficile à gérer spécifiquement si ce client n'appartient pas au domaine d'informatiques, et comme tous les autres notre société « iMaxeam» rencontre ce type de problème de collaboration et communication. 
+
+\vspace{5mm}
+En général pour résoudre ces problèmes-là on utilise les méthodes traditionnelles comme les réclamations par email ou contacter les responsables de société, mais puisqu’ils sont prouvés par le temps de leur inutilité à cause des problèmes simples comme la différence de temps entre la société et les clients à l’étranger comme notre cas nos produits sont ciblés a les marchés extérieurs on a aussi  des problèmes des surcharges  des emails et que quelque réclamation n’ont pas la chance d’être lu suit au nombre énorme des emails reçus en conséquence une perte de temps qui est équivalente à une perte d’argent et d'autre part les clients ne peut pas suivre l'état de leurs réclamations. 
+
+\vspace{5mm}
+Dans ce contexte et dans le but d’optimiser la communication entre la société et client et entre les membres d'équipe de travail, que s’inscrit mon projet de fin d’études, j'ai développé une application web: "Conception et développement et réalisation d’une application web pour le suivi des clients".  L’objectif de ce projet consiste à créer une application web permettant de facilité le contact entre le client et l’entreprise considèrent la résolution de problème technique ou pannes prévenues dans l’application et l'assignent les taches aux membres d'équipe. Ce rapport présente l’ensemble des étapes suivies pour développer la solution, il est composé de quatre chapitres organisés comme suit :
+
+\begin{itemize}
+\vspace{2mm}
+\item \raggedright Le premier chapitre : se charge de présenter une idée générale sur la société d’accueil, l’environnement de stage et de situer le cadre général de travail, et il renferme une étude des solutions techniques existantes, ainsi que la solution retenue, et on finit par donner la méthodologie de conception adoptée pour la réalisation de ce travail.
+\vspace{2mm}
+\item \raggedright Le deuxième chapitre : présente l'analyse et la spécification des besoins et détaille les différents cas d’utilisation en illustrant quelques diagrammes UML.
+        
+\vspace{2mm}
+\item \raggedright Le troisième chapitre : comporte l’analyse et la conception du projet. On s’intéresse aux diagrammes de cas d’utilisation, classes et de séquences.
+        
+\vspace{2mm}
+\item \raggedright Le quatrième chapitre : décrit la réalisation du projet ainsi le choix des outils de développement, aussi la phase d’implémentation, de test et de validation et présenter les principales pages réalisées.
+\end{itemize}
+
+\vspace{5mm}
+\`A la fin, nous clôturons le présent rapport par une conclusion générale qui résume notre travail et nous exposons quelques perspectives qui peuvent l’enrichir.

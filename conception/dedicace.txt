@@ -1,0 +1,30 @@
+\thispagestyle{plain}
+\lhead{}
+\rhead{}
+
+\vspace*{1.5cm}
+\begin{flushright}
+    {\LARGE \bfseries Dédicace}\\[3mm]
+    \rule{0.35\textwidth}{1pt}
+\end{flushright}
+\vspace{1.5cm}
+
+{\itshape \large
+
+Du plus profond de mon cœur, je dédie cette œuvre à toutes les personnes qui me sont chères.
+
+\vspace{4mm}
+À mes chers parents, qui sont ma source de bonheur. Aucune dédicace ne saurait être assez éloquente pour exprimer ce que vous méritez. Votre bonne éducation, vos conseils et votre bénédiction m'ont été d'un grand secours pour mener à bien mes études. Recevez à travers ce travail l'expression de mon amour, de toute ma gratitude et de mes profonds sentiments.
+
+\vspace{4mm}
+À tous les membres de ma famille, je vous remercie de vos encouragements et du soutien que vous m'avez apporté.
+
+\vspace{4mm}
+À tous ceux qui ont participé à ma formation, mes chers professeurs et mes superviseurs de stage en entreprise.
+
+\vspace{6mm}
+Toute ma gratitude\dots
+
+}
+
+\clearpage

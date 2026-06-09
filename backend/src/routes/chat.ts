@@ -322,7 +322,18 @@ function deriveRelations(schemas: TableSchema[], prefix: string): Relation[] {
       for (const other of tableNames) {
         if (other === schema.tableName) continue;
         const otherBase = other.replace(new RegExp(`^${prefix.replace(/\d/, '\\d')}`), '').toLowerCase();
-        if (colBase === otherBase || colBase + 's' === otherBase || colBase === otherBase + 's') {
+        // Last underscore-segment for compound names: "production_batches" → "batches"
+        const otherParts = otherBase.split('_');
+        const otherLast = otherParts[otherParts.length - 1] ?? otherBase;
+        if (
+          colBase === otherBase ||
+          colBase + 's' === otherBase ||
+          colBase + 'es' === otherBase ||       // batch → production_batches
+          colBase === otherBase + 's' ||
+          otherLast === colBase ||               // abbreviated FK to compound table
+          otherLast === colBase + 's' ||
+          otherLast === colBase + 'es'
+        ) {
           relations.push({ from: schema.tableName, to: other, on: col.name });
           break;
         }
@@ -795,9 +806,24 @@ export default async function chatRoutes(fastify: FastifyInstance) {
         } satisfies ChatResponse);
       }
 
+      // Load recent conversation history so the LLM can resolve follow-up references
+      let conversationHistory: { role: 'user' | 'assistant'; content: string }[] = [];
+      try {
+        const histRes = await query(
+          `SELECT role, text FROM morph_messages WHERE session_id = $1 ORDER BY id ASC`,
+          [sessionId]
+        );
+        const allMsgs = (histRes.rows as { role: string; text: string }[]).map((r) => ({
+          role: r.role === 'user' ? 'user' as const : 'assistant' as const,
+          content: r.text,
+        }));
+        // Keep last 12 messages (6 turns) to stay within token budget
+        conversationHistory = allMsgs.slice(-12);
+      } catch { /* best-effort */ }
+
       let sql: string;
       try {
-        sql = await generateSQL(message, sessionContext);
+        sql = await generateSQL(message, sessionContext, conversationHistory);
       } catch (err) {
         fastify.log.error(err);
         return reply.status(502).send({ error: 'Could not reach the LLM. Check your API key.' });

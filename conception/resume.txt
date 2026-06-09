@@ -1,0 +1,18 @@
+\thispagestyle{plain}
+\lhead{Résumé}
+\rhead{}
+
+\vspace*{1.5cm}
+\begin{flushright}
+    {\LARGE \bfseries Résumé}\\[3mm]
+    \rule{0.35\textwidth}{1pt}
+\end{flushright}
+\vspace{1cm}
+
+\large
+La réalisation de ce projet au sein de la société \textbf{iMaxeam} entre dans le cadre d'un projet de fin d'études en vue de l'obtention du diplôme national d'ingénieur en informatique de l'École Polytechnique de Sousse. L'objectif principal est de concevoir et développer \textbf{Morph}, une plateforme web qui permet à un utilisateur non technique de créer, d'alimenter et d'interroger une véritable base de données en exprimant simplement son besoin en langage naturel. Un modèle de langage (LLM) interprète la demande, génère le code SQL adapté et crée dynamiquement les tables dans une base PostgreSQL, dont les données sont ensuite visualisées sur un canvas interactif. La méthodologie de travail adoptée est la démarche agile 2TUP, et la conception s'appuie sur le langage de modélisation unifié (UML). Le développement repose sur Next.js et React pour la partie Front-End, Fastify et Node.js pour la partie Back-End, PostgreSQL pour le stockage des données et l'API Claude d'Anthropic pour l'intelligence artificielle, le tout écrit en TypeScript.
+
+\vspace{6mm}
+\noindent\textbf{Mots clés :} Morph, langage naturel, LLM, Claude, SQL, PostgreSQL, Next.js, React, Fastify, Node.js, TypeScript, 2TUP, UML.
+
+\clearpage

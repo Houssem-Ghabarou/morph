@@ -1,0 +1,38 @@
+\lhead{Lexique des abréviations}
+\rhead{}
+
+\vspace*{1.5cm}
+\begin{flushright}
+    {\LARGE \bfseries Lexique des abréviations}\\[3mm]
+    \rule{0.35\textwidth}{1pt}
+\end{flushright}
+\vspace{1.5cm}
+
+\begin{center}
+\begin{longtable}{p{3cm} p{11cm}}
+\textbf{2TUP} & Two Track Unified Process \\[2mm]
+\textbf{API} & Application Programming Interface \\[2mm]
+\textbf{CSS} & Cascading Style Sheets \\[2mm]
+\textbf{CSV} & Comma-Separated Values \\[2mm]
+\textbf{DOM} & Document Object Model \\[2mm]
+\textbf{HTML} & HyperText Markup Language \\[2mm]
+\textbf{HTTP} & HyperText Transfer Protocol \\[2mm]
+\textbf{IA} & Intelligence Artificielle \\[2mm]
+\textbf{JSON} & JavaScript Object Notation \\[2mm]
+\textbf{JWT} & JSON Web Token \\[2mm]
+\textbf{KPI} & Key Performance Indicator (Indicateur Clé de Performance) \\[2mm]
+\textbf{LLM} & Large Language Model (Grand Modèle de Langage) \\[2mm]
+\textbf{LNL} & Langage Naturel \\[2mm]
+\textbf{REST} & Representational State Transfer \\[2mm]
+\textbf{SGBD} & Système de Gestion de Base de Données \\[2mm]
+\textbf{SQL} & Structured Query Language \\[2mm]
+\textbf{SSG} & Static Site Generation \\[2mm]
+\textbf{SSR} & Server-Side Rendering \\[2mm]
+\textbf{TSX} & TypeScript XML \\[2mm]
+\textbf{UML} & Unified Modeling Language \\[2mm]
+\textbf{URL} & Uniform Resource Locator \\[2mm]
+\textbf{XML} & eXtensible Markup Language \\[2mm]
+\textbf{XSS} & Cross-Site Scripting \\[2mm]
+\end{longtable}
+\end{center}
+\clearpage

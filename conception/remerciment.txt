@@ -1,0 +1,18 @@
+\chapter*{REMERCIEMENTS}
+\addcontentsline{toc}{chapter}{Remerciements}
+\large
+Tout travail est l'élaboration de l'effort de plusieurs individus que je saisis cette occasion pour exprimer mes vifs remerciements :
+
+\vspace{4mm}
+Mon encadrant académique Docteur \textbf{Hmida Rojbani} pour la qualité de son encadrement, son encouragement et ses conseils qui nous ont été très bénéfiques.
+
+\vspace{4mm}
+Toute l'équipe de l'entreprise iMAXEAM pour l'expérience enrichissante et pleine d'intérêt qu'elle m'a fait vivre durant ces mois de stage et particulièrement aux personnes suivantes :
+\begin{itemize}
+    \vspace{2mm}
+    \item \textbf{M. Zied CHATTI} et \textbf{M. Mehdi Nabli} qui m'ont bien accueilli au sein de leur entreprise et qui m'ont accordé ce stage et cru en moi.
+    \item Mon encadrante, \textbf{Oumayma AKKARI} et sa collègue \textbf{Ines YOUSSEF}, pour leur suivi régulier, leurs orientations, disponibilité, conseils et le temps qu'elles m'ont consacré durant ce stage pour atteindre les objectifs de ce projet dans les délais convenus.
+\end{itemize}
+
+\vspace{4mm}
+Mon dernier mot s'adresse à tous \textbf{les membres du jury} pour l'honneur qu'ils me font de participer à l'examen de mon travail.

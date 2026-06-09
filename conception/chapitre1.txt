@@ -1,0 +1,173 @@
+\chapter{\textbf{Contexte général du projet}}
+\lhead{Contexte général du projet}
+\rhead{}
+\minitoc
+\newpage
+
+\section*{Introduction}
+Ce premier chapitre pose les bases du projet. Nous y présentons d'abord l'organisme d'accueil, puis le contexte dans lequel s'inscrit Morph : la problématique qui a motivé sa conception, l'étude des solutions existantes sur le marché et la réponse que nous proposons. Nous terminons en exposant la méthodologie de travail retenue, le langage de modélisation utilisé et le planning suivi tout au long du stage.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Cadre du projet}
+Le présent rapport décrit le projet intitulé « Conception et développement de Morph, une plateforme de génération de bases de données et d'interfaces métier par langage naturel ». Il a été réalisé dans le cadre du projet de fin d'études en vue de l'obtention du diplôme National d'Ingénieur en Informatique à l’\textit{École Polytechnique de Sousse} pour l'année universitaire 2025/2026.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Présentation de l'entreprise d'accueil}
+Avant d'aborder le projet en lui-même, il nous semble important de situer son environnement de réalisation.
+
+\subsection{Introduction}
+% TODO : adapter cette section avec les informations réelles de ton entreprise d'accueil
+iMaxeam est une société spécialisée dans le développement de solutions logicielles autour de IBM Maximo. Fondée à Tunis, elle accompagne ses clients dans le conseil, l’intégration et le développement d’applications métier. Elle a notamment développé MaxApps, une solution mobile permettant de rendre IBM Maximo accessible sur terminaux mobiles et d’optimiser les opérations sur le terrain.
+
+\vspace{1mm}
+\begin{figure}[H]
+        \centering
+        \includegraphics[width=3.0in]{images/iMAXeam.png}
+        \caption{Logo de l'entreprise}
+        \label{fig:logo-entreprise}
+\end{figure}
+
+\subsection{Domaines d'expertise}
+% TODO : remplacer par les vraies activités/produits de ton entreprise
+Les principales activités de l'entreprise se déclinent autour des axes suivants :
+\begin{itemize}
+    \item \textbf{MAXapps} : solution mobile IBM Maximo permettant de créer des applications adaptées aux processus métiers et de collecter des données fiables en temps réel.
+    
+    \item \textbf{MAXls Data Loader} : outil complémentaire d’IBM Maximo permettant l’importation, la mise à jour et l’édition des données relatives aux actifs et aux MRO.
+    
+    \item \textbf{MAXvs} : planificateur visuel intégré à Maximo offrant une gestion simplifiée des plannings grâce à un calendrier interactif et au système de glisser-déposer.
+    
+    \item \textbf{MAXIoT} : plateforme IoT intégrée à IBM Maximo permettant de créer des tableaux de bord dynamiques et de connecter des appareils et capteurs en temps réel.
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Contexte du projet}
+Cette section met en lumière les motivations qui ont conduit à la naissance de Morph : le constat d'un besoin réel, l'analyse des outils déjà disponibles, et la solution que nous avons imaginée pour y répondre.
+
+\subsection{Problématique}
+Comme toutes les sociétés, iMaxeam est confrontée à la difficulté d’exploiter pleinement ses données métier. Aujourd’hui, organiser et analyser des informations comme les clients, les commandes, les tâches ou tout autre élément opérationnel suppose de maîtriser des concepts techniques que la plupart des utilisateurs ne possèdent pas. Il faut concevoir une base de données, définir les bonnes tables et écrire des requêtes complexes pour obtenir le moindre résultat.
+
+\vspace{3mm}
+Les utilisateurs se tournent alors vers les tableurs comme Excel, simples à prendre en main mais vite limités dès que les données deviennent volumineuses ou qu’il s’agit de gérer des relations et des actions plus dynamiques comme des suivis ou des tâches automatisées. La seule alternative reste de faire appel à un développeur, ce qui allonge les délais et rend les équipes métier dépendantes du service technique. Chaque nouveau besoin doit ainsi passer par un spécialiste, ce qui se traduit par une perte de temps et de réactivité.
+
+\vspace{3mm}
+La question qui se pose est donc de savoir comment permettre à un utilisateur non technique de créer, organiser et interroger un système de données complet, incluant clients, commandes et tâches, simplement en exprimant son besoin en langage naturel, sans écrire la moindre ligne de code ni définir la structure technique. C’est à cette problématique que le projet Morph entend répondre.
+
+\subsection{Étude de l'existant}
+Une étude de l'existant est indispensable : elle permet de comprendre ce que le marché propose déjà, d'identifier les forces sur lesquelles s'appuyer et les manques sur lesquels se différencier. Nous avons retenu deux solutions particulièrement représentatives de l'état de l'art : \textbf{Airtable} et \textbf{Notion}.
+
+\vspace{3mm}
+\textbf{Airtable} est une plateforme lancée en 2012 qui se positionne à la frontière entre le tableur et la base de données relationnelle. L'utilisateur y crée des tables, définit des colonnes typées (texte, nombre, date, lien vers une autre table, etc.) et peut visualiser ses données sous forme de grille, kanban, calendrier ou galerie. Depuis 2023, Airtable propose des fonctionnalités d'intelligence artificielle pour générer du contenu et suggérer des automatisations [1].
+
+\vspace{0.5mm}
+\begin{figure}[h!]
+\centering
+	\includegraphics[width=4.7in]{images/airtable.png}
+	\caption{Interface d'Airtable}
+	\label{fig:airtable}
+\end{figure}
+
+\vspace{1mm}
+\textbf{Notion} est un espace de travail tout-en-un lancé en 2016, qui combine prise de notes, gestion de projet et bases de données légères. Notion intègre depuis 2023 un assistant conversationnel, \textit{Notion AI}, capable de générer du texte, de résumer des pages et de remplir certaines propriétés automatiquement [2].
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=4.7in]{images/notion.png}
+    \caption{Interface de Notion}
+    \label{fig:notion}
+\end{figure}
+
+\subsection{Critique de l'existant}
+Airtable et Notion sont deux produits matures, fiables, dotés d'écosystèmes riches et adoptés par des millions d'utilisateurs. Leurs forces sont réelles : interfaces visuelles soignées, collaboration en temps réel, vues multiples, nombreuses intégrations tierces.
+
+\vspace{3mm}
+Cependant, ils partagent une limite fondamentale qui constitue précisément le point de départ de notre projet : \textbf{l'utilisateur reste responsable de la conception de la structure de ses données}. Aucun de ces outils ne permet de décrire un besoin métier en langage naturel et d'obtenir en retour une base de données prête à l'emploi. L'intelligence artificielle qu'ils embarquent est essentiellement éditoriale, car elle écrit, reformule et remplit du contenu, mais elle ne modélise pas les données.
+
+\vspace{3mm}
+À cela s'ajoutent d'autres limites : les schémas, une fois créés, sont difficiles à faire évoluer ; les bases de données de Notion ne reposent pas sur un véritable moteur SQL et perdent en performance sur de grands volumes ; et dans les deux cas, l'utilisateur n'a pas accès à la couche technique sous-jacente, ce qui restreint les requêtes complexes et l'export des données.
+
+\subsection{Solution proposée}
+Le projet \textbf{Morph} consiste à concevoir et développer une plateforme web qui répond à cette limite par une approche radicalement différente : \textit{l'utilisateur décrit son besoin en langage naturel, Morph construit la base de données et l'interface}.
+
+\vspace{3mm}
+Concrètement, lorsqu'un utilisateur écrit dans Morph une phrase comme \textit{« je gère une boulangerie, je veux suivre mes commandes et mes clients »}, le système interprète cette intention, génère les tables nécessaires (clients, produits, commandes, lignes de commande), définit les colonnes et les relations, puis affiche immédiatement les composants visuels associés sur un canvas interactif : tableaux, formulaires, graphiques, indicateurs.
+
+\vspace{3mm}
+Les principes directeurs du projet sont les suivants :
+\begin{itemize}
+    \item \textbf{Génération de schéma par langage naturel} : l'utilisateur n'a plus à modéliser ses données lui-même.
+    \item \textbf{Évolution en temps réel} : la structure n'est jamais figée. Une demande comme \textit{« ajoute un champ pour la date de livraison »} s'exécute immédiatement, sans migration manuelle ni rechargement de page.
+    \item \textbf{Vrai moteur de base de données} : Morph s'appuie sur PostgreSQL, ce qui garantit performance, fiabilité et compatibilité avec les requêtes SQL avancées.
+    \item \textbf{Interface générée automatiquement} : tableaux, formulaires et visualisations apparaissent sur le canvas en réponse aux messages de l'utilisateur, sans configuration.
+    \item \textbf{Import intelligent} : Morph détecte la structure d'un fichier CSV et construit automatiquement la table correspondante.
+\end{itemize}
+
+\vspace{3mm}
+L'objectif final est de mettre la puissance d'une vraie base de données entre les mains d'utilisateurs non techniques, sans leur demander d'en apprendre les concepts.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Méthodologie de travail adoptée}
+Le choix d'une méthodologie de travail conditionne la bonne conduite du projet, de la définition des besoins jusqu'à la livraison. Nous présentons ici la démarche retenue pour Morph, puis nous détaillons la méthodologie 2TUP et son processus de développement.
+
+\subsection{Méthodologie adoptée}
+Tout projet logiciel a besoin d'un cadre de travail. Le choix d'une méthodologie n'est pas anodin : il influence la manière de découper les tâches, de gérer les imprévus et de livrer la valeur. Le projet Morph présente plusieurs spécificités qui ont guidé ce choix : il est mené en monôme, il intègre des composants d'intelligence artificielle dont le comportement n'est pas entièrement prévisible à l'avance, et son périmètre est susceptible d'évoluer au fil des expérimentations.
+
+\vspace{3mm}
+Pour ces raisons, nous avons opté pour une approche \textbf{Agile}, qui privilégie l'itération, l'adaptation aux changements et la livraison incrémentale de fonctionnalités. Plus précisément, nous avons retenu la méthodologie \textbf{2TUP} (\textit{Two Track Unified Process}), bien adaptée aux projets dans lesquels les enjeux fonctionnels et techniques méritent d'être traités en parallèle avant d'être réconciliés.
+
+\subsection{Méthodologie 2TUP}
+2TUP s'articule autour d'un cycle de vie en Y, qui dissocie volontairement la branche fonctionnelle (les besoins métier) et la branche technique (l'architecture, les choix technologiques) avant de les faire converger lors de la conception et de la réalisation [3]. Cette séparation est particulièrement pertinente pour Morph, où les choix techniques (modèle de langage, base de données, architecture temps réel) sont aussi déterminants que la définition des besoins.
+
+\subsection{Processus de développement}
+2TUP est un processus unifié, itératif, construit sur UML, centré sur l'architecture et piloté par les cas d'utilisation. Son nom, \textit{Two Track}, traduit la double voie qu'il propose :
+\begin{itemize}
+    \item Voie fonctionnelle : modélisation du métier et des besoins utilisateurs.
+    \item Voie technique : choix d'architecture et contraintes techniques.
+\end{itemize}
+
+\begin{figure}[h!]
+\centering
+	\includegraphics[width=4.4in]{images/Cycle de processus Y.png}
+	\caption{Cycle de processus en Y}
+	\label{fig:cycle-y}
+\end{figure}
+
+\vspace{5mm}
+\textbf{Branche fonctionnelle :}
+\begin{itemize}
+    \item \textit{Capture des besoins fonctionnels} : modéliser le métier des utilisateurs, indépendamment des choix techniques.
+    \item \textit{Analyse} : étudier la spécification fonctionnelle de manière précise.
+\end{itemize}
+
+\newpage
+\textbf{Branche technique :}
+\begin{itemize}
+    \item \textit{Capture des besoins techniques} : identifier les contraintes et les choix qui structureront l'architecture.
+    \item \textit{Conception générique} : définir les composants essentiels de l'architecture technique.
+    \item \textit{Conception préliminaire} : intégrer les modèles fonctionnel et technique.
+    \item \textit{Conception détaillée} : approfondir la réalisation de chaque composant.
+    \item \textit{Codage et tests} : implémenter et valider chaque module.
+    \item \textit{Recette} : valider l'ensemble des fonctionnalités du système final.
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Langage de modélisation}
+Pour la phase de conception, nous avons choisi \textbf{UML} (\textit{Unified Modeling Language}) comme langage de modélisation. UML est un langage graphique standard, largement adopté dans l'industrie, conçu pour décrire l'architecture, le comportement et la mise en œuvre de systèmes logiciels complexes [4]. Sa richesse, à travers les diagrammes de cas d'utilisation, de classes, de séquence et d'activité, le rend particulièrement adapté à un projet comme Morph, qui combine logique métier, interactions utilisateur et flux techniques.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Chronogramme des tâches}
+La répartition du travail sur la durée du stage a été pensée pour respecter les phases du cycle 2TUP tout en laissant la place nécessaire à l'expérimentation, qui occupe une part importante dans un projet faisant intervenir des modèles de langage. Le diagramme de Gantt ci-dessous (figure \ref{fig:gantt}) illustre cette répartition.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=6.2in]{images/gantt.png}
+    \caption{Diagramme de Gantt du projet Morph}
+    \label{fig:gantt}
+\end{figure}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section*{Conclusion}
+Ce chapitre nous a permis de poser le cadre du projet Morph. Nous avons présenté l'organisme d'accueil, exposé la problématique à laquelle Morph cherche à répondre, analysé deux solutions existantes (Airtable et Notion) et identifié leurs limites. Nous avons ensuite décrit la solution proposée, dont la valeur ajoutée centrale réside dans la génération automatique d'une base de données et de son interface à partir d'une description en langage naturel. Nous avons enfin justifié le choix de la méthodologie 2TUP, du langage UML, et présenté le planning du projet.
+
+\vspace{5mm}
+Le chapitre suivant est consacré à l'analyse préliminaire, dans laquelle nous identifions les acteurs du système et formalisons les besoins fonctionnels et non fonctionnels.

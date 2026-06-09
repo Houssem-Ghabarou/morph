@@ -1,0 +1,135 @@
+\chapter{\textbf{Conception de l'application}}
+\lhead{Conception de l'application}
+\rhead{}
+\newpage
+
+\section*{Introduction}
+Après la phase d'analyse et de spécification des besoins, nous consacrons ce chapitre à la conception technique et architecturale de Morph. Cette phase est essentielle dans le cycle de développement : elle permet de décrire de façon non ambiguë le fonctionnement du système avant d'entamer sa réalisation.
+
+Nous commencerons par une étude technique de l'architecture adoptée et des technologies utilisées. Nous présenterons ensuite les diagrammes de séquence des principaux cas d'utilisation, puis le diagramme de classes qui modélise la structure statique de l'application.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Étude technique}
+L'étude technique précise les fondations sur lesquelles repose Morph. Nous décrivons d'abord l'architecture générale adoptée, puis la pile technologique retenue, et enfin le rôle particulier que joue le système LLM au sein de cette architecture.
+
+\subsection{Architecture adoptée}
+
+Morph repose sur une architecture trois-tiers qui sépare clairement les responsabilités entre le client, le serveur et la base de données. Cette séparation favorise la maintenabilité, la testabilité et l'évolutivité du système.
+
+\begin{enumerate}[label=-]
+    \item \textbf{Couche présentation (Frontend) :} développée avec Next.js et React, elle gère l'interface utilisateur, à savoir le canvas interactif, le panneau de chat, l'import CSV et la gestion des sessions. Elle communique exclusivement avec le backend via des requêtes HTTP.
+    \item \textbf{Couche métier (Backend) :} développée avec Node.js et Fastify, elle expose une API REST et orchestre toute la logique applicative : vérification de l'authentification via un middleware JWT, construction des prompts envoyés au système LLM, exécution du SQL retourné, et gestion des métadonnées de session.
+    \item \textbf{Couche données :} assurée par PostgreSQL. Les tables dynamiques créées par le LLM y sont stockées avec un préfixe unique par session, garantissant une isolation stricte entre les utilisateurs.
+\end{enumerate}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=5.5in]{images/architecture.png}
+    \caption{Architecture trois-tiers de Morph}
+    \label{fig:architecture}
+\end{figure}
+
+\subsection{Stack technologique}
+
+Le choix des technologies a été guidé par trois critères : performance, maturité de l'écosystème, et cohérence avec les besoins spécifiques de Morph, notamment la gestion de schémas dynamiques et l'intégration d'un modèle de langage.
+
+\begin{enumerate}
+    \item \textbf{Next.js :} framework React avec rendu hybride (SSR/SSG), utilisé pour le frontend. Il offre un système de routage intégré et une excellente expérience développeur.
+    \item \textbf{Node.js + Fastify :} environnement d'exécution JavaScript côté serveur. Fastify permet de construire une API REST légère, modulaire et particulièrement performante.
+    \item \textbf{PostgreSQL :} système de gestion de base de données relationnelle open-source. Son support natif des commandes \texttt{ALTER TABLE} en fait le choix idéal pour les migrations de schéma dynamiques exécutées en temps réel par le LLM.
+    \item \textbf{Claude API (Anthropic) :} modèle de langage large utilisé pour interpréter les messages en langage naturel, générer le SQL adapté, détecter les schémas de fichiers CSV et analyser les données à la demande.
+    \item \textbf{Tailwind CSS :} framework CSS utilitaire utilisé pour construire l'interface de manière rapide et cohérente.
+    \item \textbf{JSON Web Token (JWT) :} standard utilisé pour l'authentification sans état. Les tokens sont stockés dans des cookies \textit{httpOnly} afin de prévenir les attaques XSS.
+\end{enumerate}
+
+\subsection{Rôle du système LLM dans l'architecture}
+
+Le système LLM constitue un acteur externe à part entière dans l'architecture de Morph. Il n'est jamais exposé directement à l'utilisateur : c'est le backend qui l'interroge à chaque requête intelligente, en lui fournissant le contexte nécessaire : schéma de la session, historique des messages et intention de l'utilisateur.
+
+\vspace{3mm}
+Le LLM intervient dans quatre situations précises :
+\begin{itemize}
+    \item Génération du SQL lors d'une demande de création ou de modification de table.
+    \item Interrogation des données à partir d'une question posée en langage naturel.
+    \item Analyse des données avec production de résumés, tendances ou agrégations.
+    \item Détection automatique du schéma lors de l'import d'un fichier CSV.
+\end{itemize}
+
+\vspace{3mm}
+Cette architecture garantit que les données brutes de l'utilisateur ne transitent jamais vers le LLM : seuls le schéma et les métadonnées de contexte lui sont transmis.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Diagrammes de séquence}
+
+Le diagramme de séquence permet de représenter les échanges entre les différents acteurs et composants du système selon un ordre chronologique. Il complète les cas d'utilisation en décrivant précisément le déroulement de chaque interaction.
+
+Dans le cadre de Morph, nous présentons deux diagrammes de séquence correspondant aux flux principaux de l'application : l'authentification d'un utilisateur, et l'envoi d'un message en langage naturel.
+
+\subsection{Diagramme de séquence «~S'authentifier~»}
+
+Le diagramme de séquence illustré dans la figure \ref{fig:seq-auth} décrit le flux complet d'une authentification dans Morph. L'utilisateur saisit ses informations de connexion sur le frontend. Celui-ci transmet la demande au backend, qui interroge la base de données PostgreSQL pour retrouver l'utilisateur correspondant. Le mot de passe est ensuite vérifié par comparaison avec le hash stocké.
+
+\vspace{3mm}
+Deux scénarios sont possibles. Dans le scénario nominal, les identifiants sont corrects : le backend génère un jeton JWT et le retourne sous forme de cookie sécurisé \textit{httpOnly}, puis le frontend redirige l'utilisateur vers son espace de travail. Dans le scénario alternatif, les identifiants sont incorrects : le backend retourne une erreur d'authentification et le frontend affiche un message explicite à l'utilisateur.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=5.8in]{images/authentification_sequence_diagram.png}
+    \caption{Diagramme de séquence «~S'authentifier~»}
+    \label{fig:seq-auth}
+\end{figure}
+
+\newpage
+\subsection{Diagramme de séquence «~Message chat (LNL)~»}
+
+Le diagramme de séquence illustré dans la figure \ref{fig:seq-chat} représente le flux central de Morph : le traitement d'un message envoyé par l'utilisateur en langage naturel. C'est ce flux qui déclenche la génération ou la modification de tables, l'interrogation ou l'analyse des données.
+
+\vspace{3mm}
+L'utilisateur saisit sa demande dans le panneau de chat. Le frontend la transmet au backend, qui commence par vérifier l'authentification via le cookie JWT. Le backend récupère ensuite le contexte de la session active, c'est-à-dire les tables qui existent déjà et leur structure, puis construit un prompt complet à destination du système LLM. Ce dernier interprète l'intention de l'utilisateur et retourne les instructions SQL adaptées.
+
+\vspace{3mm}
+Le backend exécute ces instructions sur PostgreSQL, crée ou modifie les tables dynamiques, enregistre les métadonnées de positionnement sur le canvas et sauvegarde le message dans l'historique de la session. Enfin, les schémas générés sont retournés au frontend, qui affiche les tables sous forme de cartes interactives sur le canvas. L'utilisateur visualise le résultat immédiatement, sans rechargement de page.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=5.8in]{images/message_chat_seq_diag.png}
+    \caption{Diagramme de séquence «~Message chat (LNL)~»}
+    \label{fig:seq-chat}
+\end{figure}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Diagramme de classes}
+
+Le diagramme de classes décrit la structure statique de l'application. Il représente l'ensemble des entités du système, leurs attributs et les relations qui les lient, telles que les associations, les compositions et les multiplicités. Ce diagramme sert de référence pour la conception de la base de données et l'organisation du code backend.
+
+\vspace{3mm}
+Le diagramme de classes de Morph est présenté dans la figure \ref{fig:diag-class}.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=6.2in]{images/class.png}
+    \caption{Diagramme de classes de Morph}
+    \label{fig:diag-class}
+\end{figure}
+
+\textbf{Description des entités :}
+
+\begin{itemize}
+    \item \textbf{User :} représente un utilisateur enregistré dans le système. Il possède un identifiant unique, une adresse email, un mot de passe haché (\texttt{passwordHash}) et une date de création. Un utilisateur peut être associé à plusieurs sessions.
+
+    \item \textbf{Session :} constitue l'espace de travail isolé d'un utilisateur. Elle possède un nom, généré automatiquement par le LLM lors du premier message ou défini manuellement, ainsi que des dates de création et de mise à jour. La session est le pivot central du système : elle regroupe les messages, les tables dynamiques et les métadonnées de positionnement du canvas.
+
+    \item \textbf{Message :} représente un échange dans le chat d'une session. Il contient le rôle de l'émetteur (\texttt{user} ou \texttt{assistant}), le contenu textuel du message, un indicateur d'avertissement et la date de création.
+
+    \item \textbf{SessionTable :} stocke les métadonnées de positionnement d'une table sur le canvas, à savoir les coordonnées \texttt{posX} et \texttt{posY}, ainsi que les sources de colonnes utilisées pour afficher les connecteurs de relations entre tables. Elle fait le lien entre la session et la table dynamique correspondante dans PostgreSQL.
+
+    \item \textbf{DynamicTable :} représente une table métier créée dynamiquement dans PostgreSQL par le LLM à la suite d'un message de l'utilisateur. Elle possède un nom et une note descriptive. Chaque instance est associée à une ou plusieurs colonnes.
+
+    \item \textbf{Column :} décrit une colonne d'une table dynamique, avec son nom, son type PostgreSQL (\texttt{TEXT}, \texttt{INTEGER}, \texttt{BOOLEAN}, etc.) et sa contrainte de nullabilité.
+\end{itemize}
+
+\section*{Conclusion}
+Ce chapitre a présenté la conception de Morph selon deux axes complémentaires. L'étude technique a exposé l'architecture trois-tiers adoptée, le rôle de chaque technologie et la place centrale du système LLM dans le traitement des requêtes. Les diagrammes de séquence ont décrit en détail les deux flux principaux du système, à savoir l'authentification et le traitement d'un message en langage naturel. Enfin, le diagramme de classes a modélisé la structure statique de l'application, en mettant en évidence les six entités centrales de Morph et leurs relations.
+
+\vspace{5mm}
+Le chapitre suivant sera consacré à la réalisation : nous y présenterons les interfaces développées et les choix d'implémentation retenus.

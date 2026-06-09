@@ -1,0 +1,18 @@
+\thispagestyle{plain}
+\lhead{Abstract}
+\rhead{}
+
+\vspace*{1.5cm}
+\begin{flushright}
+    {\LARGE \bfseries Abstract}\\[3mm]
+    \rule{0.35\textwidth}{1pt}
+\end{flushright}
+\vspace{1cm}
+
+\large
+This project was carried out at \textbf{iMaxeam} as part of a graduation project for the national engineering degree in computer science of the Polytechnic School of Sousse. The main objective is to design and develop \textbf{Morph}, a web platform that enables non-technical users to create, populate and query a real database simply by expressing their needs in natural language. A large language model (LLM) interprets the request, generates the corresponding SQL code and dynamically creates the tables in a PostgreSQL database, whose data is then visualized on an interactive canvas. The adopted work methodology is the agile 2TUP process, and the design relies on the Unified Modeling Language (UML). The application is built with Next.js and React for the Front-End, Fastify and Node.js for the Back-End, PostgreSQL for data storage and Anthropic's Claude API for the artificial intelligence, all written in TypeScript.
+
+\vspace{6mm}
+\noindent\textbf{Keywords:} Morph, natural language, LLM, Claude, SQL, PostgreSQL, Next.js, React, Fastify, Node.js, TypeScript, 2TUP, UML.
+
+\clearpage

@@ -1,0 +1,25 @@
+\Remerciements{Netographie}
+\vspace{-13mm}
+\small
+\begin{enumerate}
+    \setcounter{enumi}{0}
+    \item \raggedright Airtable, https://www.airtable.com/, dernier accès : 12/03/2026
+    \item \raggedright Notion, https://www.notion.so/help, dernier accès : 12/03/2026
+    \item \raggedright Méthodologie 2TUP, https://www.techno-science.net/definition/670.html, dernier accès : 20/03/2026
+    \item \raggedright UML, https://www.lucidchart.com/pages/fr/langage-uml, dernier accès : 22/03/2026
+    \item \raggedright StarUML, https://docs.staruml.io/, dernier accès : 02/04/2026
+    \item \raggedright Figma, https://help.figma.com/hc/en-us, dernier accès : 02/04/2026
+    \item \raggedright Visual Studio Code, https://code.visualstudio.com/docs, dernier accès : 05/04/2026
+    \item \raggedright Postman, https://learning.postman.com/docs/introduction/overview/, dernier accès : 05/04/2026
+    \item \raggedright pgAdmin, https://www.pgadmin.org/docs/, dernier accès : 08/04/2026
+    \item \raggedright Git, https://git-scm.com/about, dernier accès : 08/04/2026
+    \item \raggedright TypeScript, https://www.typescriptlang.org/docs/, dernier accès : 15/04/2026
+    \item \raggedright Next.js, https://nextjs.org/docs, dernier accès : 18/04/2026
+    \item \raggedright React, https://react.dev/learn, dernier accès : 18/04/2026
+    \item \raggedright Node.js, https://nodejs.org/en/docs, dernier accès : 20/04/2026
+    \item \raggedright Fastify, https://fastify.dev/docs/latest/, dernier accès : 22/04/2026
+    \item \raggedright PostgreSQL, https://www.postgresql.org/docs/, dernier accès : 25/04/2026
+    \item \raggedright Claude (Anthropic), https://docs.anthropic.com/, dernier accès : 28/04/2026
+    \item \raggedright Tailwind CSS, https://tailwindcss.com/docs, dernier accès : 30/04/2026
+    \item \raggedright Overleaf, https://www.overleaf.com/learn, dernier accès : 02/05/2026
+\end{enumerate}
