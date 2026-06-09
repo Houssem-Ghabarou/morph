@@ -139,15 +139,6 @@ Dans cette section, nous présentons les principales interfaces de l'application
     \end{figure}
     Comme toute application, la sécurité d'accès est essentielle. Pour accéder à Morph, chaque utilisateur doit tout d'abord s'authentifier. La figure \ref{fig:login} présente l'interface de connexion, accessible aux utilisateurs qui doivent saisir leur adresse e-mail et leur mot de passe. La session est ensuite maintenue de manière sécurisée par un jeton stocké dans un cookie.
 
-    \subsection{Interface d'inscription}
-    \begin{figure}[H]
-        \centering
-        \includegraphics[width=\textwidth, height=4.5in, keepaspectratio]{images/interface signup.png}
-        \caption{Interface d'inscription}
-        \label{fig:signup}
-    \end{figure}
-    Cette interface permet à un nouvel utilisateur de créer son compte en renseignant son adresse e-mail et un mot de passe. Une fois l'inscription validée, l'utilisateur dispose immédiatement de son propre espace de travail, totalement isolé des autres comptes.
-
     \subsection{Interface principale de l'espace de travail}
     \begin{figure}[H]
         \centering
@@ -156,24 +147,6 @@ Dans cette section, nous présentons les principales interfaces de l'application
         \label{fig:workspace}
     \end{figure}
     Il s'agit de l'interface centrale de Morph. Elle réunit, à gauche, la barre latérale de navigation entre les sessions, au centre, le canvas interactif sur lequel s'affichent les tables et les visualisations, et à droite, le panneau de discussion en langage naturel. C'est depuis cet espace que l'utilisateur orchestre l'ensemble de ses activités.
-
-    \subsection{Interface de discussion en langage naturel}
-    \begin{figure}[H]
-        \centering
-        \includegraphics[width=\textwidth, height=4.5in, keepaspectratio]{images/interface chat.png}
-        \caption{Interface de discussion en langage naturel}
-        \label{fig:chat}
-    \end{figure}
-    Cette interface permet à l'utilisateur de décrire ses besoins métier en langage naturel. Le message est transmis au modèle Claude qui génère le SQL correspondant, crée ou modifie les tables PostgreSQL, insère des données ou répond à une question portant sur les données existantes. L'utilisateur n'a ainsi jamais besoin d'écrire la moindre ligne de SQL.
-
-    \subsection{Interface du canvas interactif}
-    \begin{figure}[H]
-        \centering
-        \includegraphics[width=\textwidth, height=4.5in, keepaspectratio]{images/interface canvas.png}
-        \caption{Interface du canvas interactif}
-        \label{fig:canvas}
-    \end{figure}
-    Le canvas affiche les données sous forme de cartes que l'utilisateur peut déplacer et organiser librement. Chaque table est présentée dans sa propre carte ; l'utilisateur peut y ajouter, modifier ou supprimer des lignes, et la disposition des cartes est automatiquement sauvegardée avec la session.
 
     \subsection{Interface d'analyse des données}
     \begin{figure}[H]
@@ -201,15 +174,6 @@ Dans cette section, nous présentons les principales interfaces de l'application
         \label{fig:connection}
     \end{figure}
     Cette interface offre à l'utilisateur la possibilité de connecter une base de données externe à sa session. Une fois la connexion enregistrée, les données peuvent être synchronisées et exploitées dans Morph au même titre que les tables créées en langage naturel.
-
-    \subsection{Interface de modification du mot de passe}
-    \begin{figure}[H]
-        \centering
-        \includegraphics[width=0.6\textwidth, keepaspectratio]{images/interface password.png}
-        \caption{Interface de modification du mot de passe}
-        \label{fig:password}
-    \end{figure}
-    Cette fenêtre est accessible à tout utilisateur authentifié et lui permet de modifier en toute sécurité le mot de passe de son compte.
 
 \section*{Conclusion}
 Ce dernier chapitre a été consacré à la phase de réalisation. Dans la première partie, nous avons présenté les outils, les langages et les frameworks retenus pour le développement de Morph. Dans la deuxième partie, nous avons donné une vue finale du projet à travers des captures d'écran, afin de donner une idée claire de l'application Morph.
