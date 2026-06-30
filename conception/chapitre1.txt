@@ -1,173 +1,207 @@
-\chapter{\textbf{Contexte général du projet}}
-\lhead{Contexte général du projet}
+\chapter{\textbf{Analyse préliminaire}}
+\lhead{Analyse préliminaire}
 \rhead{}
-\minitoc
 \newpage
 
 \section*{Introduction}
-Ce premier chapitre pose les bases du projet. Nous y présentons d'abord l'organisme d'accueil, puis le contexte dans lequel s'inscrit Morph : la problématique qui a motivé sa conception, l'étude des solutions existantes sur le marché et la réponse que nous proposons. Nous terminons en exposant la méthodologie de travail retenue, le langage de modélisation utilisé et le planning suivi tout au long du stage.
+Avant d'entamer le développement de Morph, il est indispensable de poser des bases solides en définissant clairement les besoins du système et les interactions attendues entre ses différents acteurs. Cette phase d'analyse préliminaire conditionne la cohérence de toute la conception qui suivra.
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Cadre du projet}
-Le présent rapport décrit le projet intitulé « Conception et développement de Morph, une plateforme de génération de bases de données et d'interfaces métier par langage naturel ». Il a été réalisé dans le cadre du projet de fin d'études en vue de l'obtention du diplôme National d'Ingénieur en Informatique à l’\textit{École Polytechnique de Sousse} pour l'année universitaire 2025/2026.
+Dans ce chapitre, nous identifions les acteurs qui gravitent autour de l'application, nous détaillons les besoins fonctionnels et non fonctionnels, puis nous les traduisons sous forme de diagrammes de cas d'utilisation. Ces diagrammes, produits conformément à la démarche 2TUP, offrent une vision structurée et globale du comportement attendu de Morph.
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Présentation de l'entreprise d'accueil}
-Avant d'aborder le projet en lui-même, il nous semble important de situer son environnement de réalisation.
+\section{Spécification des besoins}
+La spécification des besoins consiste à identifier les acteurs qui interagissent avec le système, puis à recenser les fonctionnalités attendues et les contraintes de qualité à respecter. Nous commençons par identifier les acteurs avant de détailler les besoins fonctionnels et non fonctionnels.
 
-\subsection{Introduction}
-% TODO : adapter cette section avec les informations réelles de ton entreprise d'accueil
-iMaxeam est une société spécialisée dans le développement de solutions logicielles autour de IBM Maximo. Fondée à Tunis, elle accompagne ses clients dans le conseil, l’intégration et le développement d’applications métier. Elle a notamment développé MaxApps, une solution mobile permettant de rendre IBM Maximo accessible sur terminaux mobiles et d’optimiser les opérations sur le terrain.
+    \subsection{Identification des acteurs}
+    Un acteur représente toute entité externe qui interagit directement avec le système. Dans le cadre de Morph, deux acteurs ont été identifiés.
 
-\vspace{1mm}
-\begin{figure}[H]
+    \begin{itemize}
+        \item \textbf{Utilisateur :} c'est l'acteur principal de l'application. Une fois authentifié, il dispose d'un accès complet à son espace de travail personnel. Il peut créer et gérer des sessions, envoyer des messages en langage naturel pour générer des structures de données, importer des fichiers CSV, visualiser ses données sur un canvas interactif et personnaliser son environnement. Chaque utilisateur ne peut accéder qu'à ses propres sessions et données, garantissant une isolation totale entre les comptes.
+
+        \item \textbf{Système LLM :} il s'agit d'un acteur système externe. Morph lui délègue l'interprétation des messages en langage naturel de l'utilisateur pour générer le SQL adapté, détecter les schémas dans les fichiers CSV, analyser les données et produire des données d'exemple. Il n'est jamais exposé directement à l'utilisateur ; il agit en coulisse à chaque requête adressée au moteur d'intelligence artificielle.
+    \end{itemize}
+
+    \subsection{Identification des besoins}
+    La spécification des besoins constitue le point de départ incontournable de tout projet logiciel. Elle permet de circonscrire précisément ce que le système doit faire, d'éviter les dérives fonctionnelles en cours de développement et de garantir un langage commun entre les développeurs et les utilisateurs finaux. Nous distinguons ici les besoins fonctionnels, qui décrivent les fonctionnalités attendues, des besoins non fonctionnels, qui encadrent les contraintes de qualité du système.
+
+    \subsubsection{Les besoins fonctionnels}
+    Les besoins fonctionnels correspondent aux fonctionnalités que l'application doit impérativement offrir pour répondre aux attentes de ses utilisateurs. Ils constituent le cœur du cahier des charges et servent de référence tout au long du développement.
+
+    Pour Morph, les besoins fonctionnels se déclinent de la façon suivante :
+
+    \begin{itemize}
+        \item \textbf{Authentification et gestion du compte :}
+            \begin{itemize}
+                \item[$\ast$]S'inscrire avec un email et un mot de passe.
+                \item[$\ast$]Se connecter et accéder à son espace personnel.
+                \item[$\ast$]Se déconnecter de manière sécurisée.
+                \item[$\ast$]Modifier son mot de passe.
+            \end{itemize}
+
+        \item \textbf{Gestion des sessions de travail :}
+            \begin{itemize}
+                \item[$\ast$]Créer une nouvelle session (projet).
+                \item[$\ast$]Renommer, supprimer et naviguer entre ses sessions.
+                \item[$\ast$]Épingler une session en favori pour y accéder rapidement.
+                \item[$\ast$]Restaurer automatiquement l'état d'une session (tables, messages, positions des cartes).
+            \end{itemize}
+
+        \item \textbf{Interaction par chat en langage naturel :}
+            \begin{itemize}
+                \item[$\ast$]Envoyer un message décrivant un besoin métier.
+                \item[$\ast$]Créer ou modifier des tables PostgreSQL via le LLM.
+                \item[$\ast$]Insérer des données dans les tables existantes.
+                \item[$\ast$]Interroger les données avec une question en langage naturel.
+                \item[$\ast$]Déclencher une analyse des données avec génération de graphiques et KPIs.
+                \item[$\ast$]Générer des données d'exemple pour remplir une table.
+            \end{itemize}
+
+        \item \textbf{Import et édition de données :}
+            \begin{itemize}
+                \item[$\ast$]Importer un fichier CSV avec détection automatique du schéma.
+                \item[$\ast$]Ajouter, modifier et supprimer des lignes dans une table.
+                \item[$\ast$]Supprimer une table entière du canvas.
+            \end{itemize}
+
+        \item \textbf{Visualisation et canvas :}
+            \begin{itemize}
+                \item[$\ast$]Visualiser les tables sous forme de cartes interactives sur un canvas.
+                \item[$\ast$]Déplacer et réorganiser les cartes par glisser-déposer.
+                \item[$\ast$]Voir les relations entre tables sous forme de connecteurs visuels.
+                \item[$\ast$]Consulter un tableau de bord dédié à chaque session.
+                \item[$\ast$]Personnaliser le thème de l'interface (Sombre, Doux, Clair).
+            \end{itemize}
+    \end{itemize}
+
+    \subsubsection{Les besoins non fonctionnels}
+    Les besoins non fonctionnels définissent les critères de qualité que le système doit respecter, indépendamment des fonctionnalités offertes. Pour Morph, ils se déclinent de la façon suivante :
+    \begin{itemize}
+        \item \textbf{L'ergonomie :} Morph repose sur le concept de canvas vierge. L'interface doit être suffisamment intuitive pour qu'un utilisateur non technique puisse décrire son besoin métier et obtenir immédiatement un résultat exploitable, sans passer par aucune configuration manuelle. Le canvas interactif, le panneau de chat et la barre latérale doivent former un ensemble cohérent et agréable à utiliser.
+
+        \item \textbf{La sécurité :} les données de chaque utilisateur doivent être strictement isolées des autres. L'authentification repose sur des jetons signés stockés dans des cookies \textit{httpOnly} pour prévenir les attaques XSS. Les routes de l'API backend sont protégées par un middleware de vérification qui s'exécute à chaque requête. Les tables dynamiques créées par le LLM sont préfixées par l'identifiant de session afin d'éviter tout accès croisé.
+
+        \item \textbf{La performance :} la génération SQL doit s'exécuter en temps quasi-réel. La communication entre le frontend et le backend doit rester fluide même lorsque plusieurs tables sont présentes dans une session. Le chargement initial des sessions doit être rapide grâce à une récupération parallèle des schémas et des métadonnées.
+
+        \item \textbf{La fiabilité :} le moteur de migration dynamique doit garantir qu'aucune perte de données n'intervient lors de la modification d'un schéma. Les erreurs générées par le LLM (SQL invalide, intention ambiguë) doivent être interceptées et traitées de façon transparente pour l'utilisateur, avec un message d'explication clair et une invitation à reformuler.
+    \end{itemize}
+
+\section{Diagrammes de cas d'utilisation}
+Les diagrammes de cas d'utilisation permettent de représenter les interactions entre les acteurs et le système. Nous présentons dans un premier temps une vue d'ensemble regroupant les principales fonctionnalités du système. Ensuite, les cas d'utilisation les plus significatifs sont détaillés à l'aide de diagrammes spécifiques accompagnés de descriptions textuelles.
+
+    \subsection{Diagramme de cas d'utilisation général}
+    Le diagramme de cas d'utilisation général offre une vue d'ensemble des interactions entre l'utilisateur et le système. Il regroupe l'ensemble des fonctionnalités de Morph organisées par domaine fonctionnel et met en évidence les systèmes externes impliqués. La figure \ref{fig:diagramme-usecase-global} représente ce diagramme.
+    \begin{figure}[H]
         \centering
-        \includegraphics[width=3.0in]{images/iMAXeam.png}
-        \caption{Logo de l'entreprise}
-        \label{fig:logo-entreprise}
-\end{figure}
+        \caption{Diagramme de cas d'utilisation général de Morph}
+        \label{fig:diagramme-usecase-global}
+        \includegraphics[width=\textwidth]{images/UseCase_Global.png}
+    \end{figure}
 
-\subsection{Domaines d'expertise}
-% TODO : remplacer par les vraies activités/produits de ton entreprise
-Les principales activités de l'entreprise se déclinent autour des axes suivants :
-\begin{itemize}
-    \item \textbf{MAXapps} : solution mobile IBM Maximo permettant de créer des applications adaptées aux processus métiers et de collecter des données fiables en temps réel.
-    
-    \item \textbf{MAXls Data Loader} : outil complémentaire d’IBM Maximo permettant l’importation, la mise à jour et l’édition des données relatives aux actifs et aux MRO.
-    
-    \item \textbf{MAXvs} : planificateur visuel intégré à Maximo offrant une gestion simplifiée des plannings grâce à un calendrier interactif et au système de glisser-déposer.
-    
-    \item \textbf{MAXIoT} : plateforme IoT intégrée à IBM Maximo permettant de créer des tableaux de bord dynamiques et de connecter des appareils et capteurs en temps réel.
-\end{itemize}
+    \subsection{Diagramme de cas d'utilisation raffiné «Importer un fichier CSV»}
+    La figure \ref{fig:diagramme-usecase-import} présente le diagramme de cas d'utilisation raffiné du processus d'import CSV. Ce cas d'utilisation s'articule autour d'une étape centrale de prévisualisation et de mapping, à partir de laquelle l'utilisateur peut ajuster les types de colonnes, mapper les données sur une table existante ou créer une nouvelle table. Une description optionnelle du contenu peut également être fournie pour affiner la détection automatique des types.
+    \begin{figure}[H]
+        \centering
+        \caption{Diagramme de cas d'utilisation raffiné «Importer un fichier CSV»}
+        \label{fig:diagramme-usecase-import}
+        \includegraphics[width=\textwidth]{images/UseCase_Import_CSV.png}
+    \end{figure}
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Contexte du projet}
-Cette section met en lumière les motivations qui ont conduit à la naissance de Morph : le constat d'un besoin réel, l'analyse des outils déjà disponibles, et la solution que nous avons imaginée pour y répondre.
-
-\subsection{Problématique}
-Comme toutes les sociétés, iMaxeam est confrontée à la difficulté d’exploiter pleinement ses données métier. Aujourd’hui, organiser et analyser des informations comme les clients, les commandes, les tâches ou tout autre élément opérationnel suppose de maîtriser des concepts techniques que la plupart des utilisateurs ne possèdent pas. Il faut concevoir une base de données, définir les bonnes tables et écrire des requêtes complexes pour obtenir le moindre résultat.
-
-\vspace{3mm}
-Les utilisateurs se tournent alors vers les tableurs comme Excel, simples à prendre en main mais vite limités dès que les données deviennent volumineuses ou qu’il s’agit de gérer des relations et des actions plus dynamiques comme des suivis ou des tâches automatisées. La seule alternative reste de faire appel à un développeur, ce qui allonge les délais et rend les équipes métier dépendantes du service technique. Chaque nouveau besoin doit ainsi passer par un spécialiste, ce qui se traduit par une perte de temps et de réactivité.
-
-\vspace{3mm}
-La question qui se pose est donc de savoir comment permettre à un utilisateur non technique de créer, organiser et interroger un système de données complet, incluant clients, commandes et tâches, simplement en exprimant son besoin en langage naturel, sans écrire la moindre ligne de code ni définir la structure technique. C’est à cette problématique que le projet Morph entend répondre.
-
-\subsection{Étude de l'existant}
-Une étude de l'existant est indispensable : elle permet de comprendre ce que le marché propose déjà, d'identifier les forces sur lesquelles s'appuyer et les manques sur lesquels se différencier. Nous avons retenu deux solutions particulièrement représentatives de l'état de l'art : \textbf{Airtable} et \textbf{Notion}.
-
-\vspace{3mm}
-\textbf{Airtable} est une plateforme lancée en 2012 qui se positionne à la frontière entre le tableur et la base de données relationnelle. L'utilisateur y crée des tables, définit des colonnes typées (texte, nombre, date, lien vers une autre table, etc.) et peut visualiser ses données sous forme de grille, kanban, calendrier ou galerie. Depuis 2023, Airtable propose des fonctionnalités d'intelligence artificielle pour générer du contenu et suggérer des automatisations [1].
-
-\vspace{0.5mm}
-\begin{figure}[h!]
-\centering
-	\includegraphics[width=4.7in]{images/airtable.png}
-	\caption{Interface d'Airtable}
-	\label{fig:airtable}
-\end{figure}
-
-\vspace{1mm}
-\textbf{Notion} est un espace de travail tout-en-un lancé en 2016, qui combine prise de notes, gestion de projet et bases de données légères. Notion intègre depuis 2023 un assistant conversationnel, \textit{Notion AI}, capable de générer du texte, de résumer des pages et de remplir certaines propriétés automatiquement [2].
-
-\begin{figure}[H]
+    Le tableau \ref{tab:useCase-import} décrit en détail le déroulement de ce cas d'utilisation.
+    \begin{table}[H]
     \centering
-    \includegraphics[width=4.7in]{images/notion.png}
-    \caption{Interface de Notion}
-    \label{fig:notion}
-\end{figure}
+    \caption{Description textuelle du cas d'utilisation «Importer un fichier CSV»}
+    \label{tab:useCase-import}
+    \begin{tabular}{|R{4cm}||R{10cm}|}
+    \hline
+    \textbf{Nom du cas d'utilisation} & Importer un fichier CSV \\
+    \hline
+    \textbf{Acteurs} & Utilisateur \\
+    \hline
+    \textbf{Description} & L'utilisateur sélectionne un fichier CSV à importer. Le système analyse automatiquement sa structure, détecte les types de colonnes adaptés et compare avec les tables existantes pour proposer un flux d'import cohérent. L'utilisateur prévisualise et valide le mapping proposé avant de confirmer l'insertion des données. \\
+    \hline
+    \textbf{Pré-condition} & L'utilisateur est authentifié. Une session de travail est active. \\
+    \hline
+    \textbf{Scénario nominal} &
+    \begin{tabular}[c]{@{}p{9.5cm}@{}}
+    1. L'utilisateur ouvre la fenêtre d'import CSV. \\
+    2. Il sélectionne le fichier CSV à importer. \\
+    3. Le système analyse la structure du fichier (en-têtes, types de données, aperçu des lignes). \\
+    4. Le système suggère automatiquement les types de colonnes et compare aux tables existantes de la session. \\
+    5. L'utilisateur prévisualise les données et le mapping proposé. \\
+    6. Il choisit de créer une nouvelle table ou d'alimenter une table existante. \\
+    7. Le système insère les lignes par lots et affiche la table sur le canvas.
+    \end{tabular} \\
+    \hline
+    \textbf{Scénario alternatif} &
+    \begin{tabular}[c]{@{}p{9.5cm}@{}}
+    2.1 : L'utilisateur fournit une description optionnelle du contenu du fichier. \\
+    \hspace{1em}- Cette description est transmise au système pour affiner la détection des types. \\
+    5.1 : L'utilisateur ajuste les noms et les types de colonnes proposés. \\
+    \hspace{1em}- Les modifications sont répercutées sur l'aperçu avant insertion. \\
+    5.2 : L'utilisateur choisit de mapper les colonnes sur une table existante. \\
+    \hspace{1em}- Le système aligne les colonnes du CSV sur celles de la table cible. \\
+    3.1 : Le fichier CSV est vide ou malformé. \\
+    \hspace{1em}- Le système affiche un message d'erreur et stoppe le processus. \\
+    7.1 : Une erreur survient lors de l'insertion des données. \\
+    \hspace{1em}- Le système annule la transaction et signale l'erreur à l'utilisateur.
+    \end{tabular} \\
+    \hline
+    \textbf{Post-condition} & Les données du fichier CSV sont insérées dans une table PostgreSQL de la session. La table apparaît sur le canvas et est immédiatement interrogeable via le chat. \\
+    \hline
+    \end{tabular}
+    \end{table}
 
-\subsection{Critique de l'existant}
-Airtable et Notion sont deux produits matures, fiables, dotés d'écosystèmes riches et adoptés par des millions d'utilisateurs. Leurs forces sont réelles : interfaces visuelles soignées, collaboration en temps réel, vues multiples, nombreuses intégrations tierces.
+    \subsection{Diagramme de cas d'utilisation raffiné «Gérer les sessions»}
+    La figure \ref{fig:diagramme-usecase-session} présente le diagramme de cas d'utilisation raffiné de la gestion des sessions. Une session représente un espace de travail isolé contenant ses propres tables, ses messages de chat et la configuration du canvas. Ce cas d'utilisation couvre l'ensemble des opérations que l'utilisateur peut effectuer sur ses sessions : création, renommage, suppression, épinglage et navigation.
+    \begin{figure}[H]
+        \centering
+        \caption{Diagramme de cas d'utilisation raffiné «Gérer les sessions»}
+        \label{fig:diagramme-usecase-session}
+        \includegraphics[width=\textwidth]{images/UseCase_Gestion_Sessions.png}
+    \end{figure}
 
-\vspace{3mm}
-Cependant, ils partagent une limite fondamentale qui constitue précisément le point de départ de notre projet : \textbf{l'utilisateur reste responsable de la conception de la structure de ses données}. Aucun de ces outils ne permet de décrire un besoin métier en langage naturel et d'obtenir en retour une base de données prête à l'emploi. L'intelligence artificielle qu'ils embarquent est essentiellement éditoriale, car elle écrit, reformule et remplit du contenu, mais elle ne modélise pas les données.
-
-\vspace{3mm}
-À cela s'ajoutent d'autres limites : les schémas, une fois créés, sont difficiles à faire évoluer ; les bases de données de Notion ne reposent pas sur un véritable moteur SQL et perdent en performance sur de grands volumes ; et dans les deux cas, l'utilisateur n'a pas accès à la couche technique sous-jacente, ce qui restreint les requêtes complexes et l'export des données.
-
-\subsection{Solution proposée}
-Le projet \textbf{Morph} consiste à concevoir et développer une plateforme web qui répond à cette limite par une approche radicalement différente : \textit{l'utilisateur décrit son besoin en langage naturel, Morph construit la base de données et l'interface}.
-
-\vspace{3mm}
-Concrètement, lorsqu'un utilisateur écrit dans Morph une phrase comme \textit{« je gère une boulangerie, je veux suivre mes commandes et mes clients »}, le système interprète cette intention, génère les tables nécessaires (clients, produits, commandes, lignes de commande), définit les colonnes et les relations, puis affiche immédiatement les composants visuels associés sur un canvas interactif : tableaux, formulaires, graphiques, indicateurs.
-
-\vspace{3mm}
-Les principes directeurs du projet sont les suivants :
-\begin{itemize}
-    \item \textbf{Génération de schéma par langage naturel} : l'utilisateur n'a plus à modéliser ses données lui-même.
-    \item \textbf{Évolution en temps réel} : la structure n'est jamais figée. Une demande comme \textit{« ajoute un champ pour la date de livraison »} s'exécute immédiatement, sans migration manuelle ni rechargement de page.
-    \item \textbf{Vrai moteur de base de données} : Morph s'appuie sur PostgreSQL, ce qui garantit performance, fiabilité et compatibilité avec les requêtes SQL avancées.
-    \item \textbf{Interface générée automatiquement} : tableaux, formulaires et visualisations apparaissent sur le canvas en réponse aux messages de l'utilisateur, sans configuration.
-    \item \textbf{Import intelligent} : Morph détecte la structure d'un fichier CSV et construit automatiquement la table correspondante.
-\end{itemize}
-
-\vspace{3mm}
-L'objectif final est de mettre la puissance d'une vraie base de données entre les mains d'utilisateurs non techniques, sans leur demander d'en apprendre les concepts.
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Méthodologie de travail adoptée}
-Le choix d'une méthodologie de travail conditionne la bonne conduite du projet, de la définition des besoins jusqu'à la livraison. Nous présentons ici la démarche retenue pour Morph, puis nous détaillons la méthodologie 2TUP et son processus de développement.
-
-\subsection{Méthodologie adoptée}
-Tout projet logiciel a besoin d'un cadre de travail. Le choix d'une méthodologie n'est pas anodin : il influence la manière de découper les tâches, de gérer les imprévus et de livrer la valeur. Le projet Morph présente plusieurs spécificités qui ont guidé ce choix : il est mené en monôme, il intègre des composants d'intelligence artificielle dont le comportement n'est pas entièrement prévisible à l'avance, et son périmètre est susceptible d'évoluer au fil des expérimentations.
-
-\vspace{3mm}
-Pour ces raisons, nous avons opté pour une approche \textbf{Agile}, qui privilégie l'itération, l'adaptation aux changements et la livraison incrémentale de fonctionnalités. Plus précisément, nous avons retenu la méthodologie \textbf{2TUP} (\textit{Two Track Unified Process}), bien adaptée aux projets dans lesquels les enjeux fonctionnels et techniques méritent d'être traités en parallèle avant d'être réconciliés.
-
-\subsection{Méthodologie 2TUP}
-2TUP s'articule autour d'un cycle de vie en Y, qui dissocie volontairement la branche fonctionnelle (les besoins métier) et la branche technique (l'architecture, les choix technologiques) avant de les faire converger lors de la conception et de la réalisation [3]. Cette séparation est particulièrement pertinente pour Morph, où les choix techniques (modèle de langage, base de données, architecture temps réel) sont aussi déterminants que la définition des besoins.
-
-\subsection{Processus de développement}
-2TUP est un processus unifié, itératif, construit sur UML, centré sur l'architecture et piloté par les cas d'utilisation. Son nom, \textit{Two Track}, traduit la double voie qu'il propose :
-\begin{itemize}
-    \item Voie fonctionnelle : modélisation du métier et des besoins utilisateurs.
-    \item Voie technique : choix d'architecture et contraintes techniques.
-\end{itemize}
-
-\begin{figure}[h!]
-\centering
-	\includegraphics[width=4.4in]{images/Cycle de processus Y.png}
-	\caption{Cycle de processus en Y}
-	\label{fig:cycle-y}
-\end{figure}
-
-\vspace{5mm}
-\textbf{Branche fonctionnelle :}
-\begin{itemize}
-    \item \textit{Capture des besoins fonctionnels} : modéliser le métier des utilisateurs, indépendamment des choix techniques.
-    \item \textit{Analyse} : étudier la spécification fonctionnelle de manière précise.
-\end{itemize}
-
-\newpage
-\textbf{Branche technique :}
-\begin{itemize}
-    \item \textit{Capture des besoins techniques} : identifier les contraintes et les choix qui structureront l'architecture.
-    \item \textit{Conception générique} : définir les composants essentiels de l'architecture technique.
-    \item \textit{Conception préliminaire} : intégrer les modèles fonctionnel et technique.
-    \item \textit{Conception détaillée} : approfondir la réalisation de chaque composant.
-    \item \textit{Codage et tests} : implémenter et valider chaque module.
-    \item \textit{Recette} : valider l'ensemble des fonctionnalités du système final.
-\end{itemize}
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Langage de modélisation}
-Pour la phase de conception, nous avons choisi \textbf{UML} (\textit{Unified Modeling Language}) comme langage de modélisation. UML est un langage graphique standard, largement adopté dans l'industrie, conçu pour décrire l'architecture, le comportement et la mise en œuvre de systèmes logiciels complexes [4]. Sa richesse, à travers les diagrammes de cas d'utilisation, de classes, de séquence et d'activité, le rend particulièrement adapté à un projet comme Morph, qui combine logique métier, interactions utilisateur et flux techniques.
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Chronogramme des tâches}
-La répartition du travail sur la durée du stage a été pensée pour respecter les phases du cycle 2TUP tout en laissant la place nécessaire à l'expérimentation, qui occupe une part importante dans un projet faisant intervenir des modèles de langage. Le diagramme de Gantt ci-dessous (figure \ref{fig:gantt}) illustre cette répartition.
-
-\begin{figure}[H]
+    Le tableau \ref{tab:useCase-session} décrit en détail le cas d'utilisation «Gérer les sessions».
+    \begin{table}[H]
     \centering
-    \includegraphics[width=6.2in]{images/gantt.png}
-    \caption{Diagramme de Gantt du projet Morph}
-    \label{fig:gantt}
-\end{figure}
+    \caption{Description textuelle du cas d'utilisation «Gérer les sessions»}
+    \label{tab:useCase-session}
+    \begin{tabular}{|R{4cm}||R{10cm}|}
+    \hline
+    \textbf{Nom du cas d'utilisation} & Gérer les sessions \\
+    \hline
+    \textbf{Acteurs} & Utilisateur \\
+    \hline
+    \textbf{Description} & L'utilisateur peut créer, renommer, supprimer, épingler et naviguer entre ses sessions de travail. Chaque session conserve l'intégralité de son état : les tables créées, l'historique des messages et les positions des cartes sur le canvas. Lors d'un changement de session, le système restaure cet état automatiquement. \\
+    \hline
+    \textbf{Pré-condition} & L'utilisateur est authentifié. \\
+    \hline
+    \textbf{Scénario nominal} &
+    \begin{tabular}[c]{@{}p{9.5cm}@{}}
+    1. L'utilisateur accède à la barre latérale de navigation. \\
+    2. Il crée une nouvelle session via le bouton dédié. \\
+    3. Le canvas est réinitialisé pour accueillir la nouvelle session. \\
+    4. L'utilisateur navigue vers une session existante. \\
+    5. Le système restaure les tables, les messages et les positions des cartes de cette session.
+    \end{tabular} \\
+    \hline
+    \textbf{Scénario alternatif} &
+    \begin{tabular}[c]{@{}p{9.5cm}@{}}
+    2.1 : L'utilisateur choisit d'épingler une session. \\
+    \hspace{1em}- La session est marquée comme favorite et apparaît en haut de la liste. \\
+    2.2 : L'utilisateur renomme une session. \\
+    \hspace{1em}- Le nouveau nom est sauvegardé immédiatement. \\
+    2.3 : L'utilisateur demande la suppression d'une session. \\
+    \hspace{1em}- Le système demande une confirmation. \\
+    \hspace{1em}- En cas de validation, toutes les tables dynamiques associées sont supprimées en cascade.
+    \end{tabular} \\
+    \hline
+    \textbf{Post-condition} & La session est créée, modifiée ou supprimée. Le canvas reflète l'état exact de la session active. \\
+    \hline
+    \end{tabular}
+    \end{table}
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section*{Conclusion}
-Ce chapitre nous a permis de poser le cadre du projet Morph. Nous avons présenté l'organisme d'accueil, exposé la problématique à laquelle Morph cherche à répondre, analysé deux solutions existantes (Airtable et Notion) et identifié leurs limites. Nous avons ensuite décrit la solution proposée, dont la valeur ajoutée centrale réside dans la génération automatique d'une base de données et de son interface à partir d'une description en langage naturel. Nous avons enfin justifié le choix de la méthodologie 2TUP, du langage UML, et présenté le planning du projet.
+Ce chapitre a posé les fondations analytiques du projet Morph. Nous avons défini les acteurs impliqués, précisé les besoins fonctionnels et non fonctionnels, puis modélisé les principaux cas d'utilisation sous forme de diagrammes UML. Ces diagrammes constituent la branche fonctionnelle de la démarche 2TUP adoptée dans ce projet.
 
-\vspace{5mm}
-Le chapitre suivant est consacré à l'analyse préliminaire, dans laquelle nous identifions les acteurs du système et formalisons les besoins fonctionnels et non fonctionnels.
+L'analyse révèle que Morph repose sur deux acteurs : l'utilisateur authentifié, qui pilote l'ensemble des interactions, et le système LLM, qui assure l'intelligence applicative en interprétant les requêtes en langage naturel. Les fonctionnalités identifiées couvrent un spectre large, du chat en langage naturel à l'import de données en passant par la gestion des sessions, ce qui confirme la richesse fonctionnelle du système à concevoir.
+
+Le prochain chapitre abordera la conception technique et architecturale du système, en s'appuyant sur ces besoins pour définir les choix technologiques et la structure de l'application.

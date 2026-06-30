@@ -12,6 +12,10 @@ import dataRoutes from './routes/data';
 import sessionRoutes from './routes/sessions';
 import importRoutes from './routes/import';
 import connectionRoutes from './routes/connections';
+import emailRoutes from './routes/email';
+import automationRoutes from './routes/automations';
+import noteRoutes from './routes/notes';
+import { startScheduler } from './lib/automationScheduler';
 
 const fastify = Fastify({
   logger: {
@@ -42,6 +46,9 @@ async function bootstrap() {
   await fastify.register(dataRoutes);
   await fastify.register(importRoutes);
   await fastify.register(connectionRoutes);
+  await fastify.register(emailRoutes);
+  await fastify.register(automationRoutes);
+  await fastify.register(noteRoutes);
 
   fastify.get('/health', async () => ({ status: 'ok' }));
 
@@ -53,6 +60,9 @@ async function bootstrap() {
 
   await runMigrations();
   fastify.log.info('Migrations OK');
+
+  await startScheduler();
+  fastify.log.info('Automation scheduler OK');
 }
 
 bootstrap().catch((err) => {

@@ -593,4 +593,154 @@ export async function generateSuggestion(
   }
 }
 
+// ─── Automation parsing (natural language → automation definition) ─────────────
+
+const PARSE_AUTOMATION_PROMPT = `You are the automation planner for Morph, a business OS.
+Convert the user's natural-language request into a single automation definition as STRICT JSON.
+
+You are given the session's tables with their EXACT database names (which include a prefix like "s5_").
+You MUST use those exact prefixed names in query_sql. Never invent table or column names.
+
+Output ONLY a JSON object (no markdown, no code fences, no commentary) with this shape:
+{
+  "name": "Short title, max 6 words",
+  "description": "One sentence describing what this automation does",
+  "trigger_type": "schedule" | "threshold" | "date_proximity",
+  "trigger_config": { ... },          // shape depends on trigger_type, see below
+  "query_sql": "SELECT ... ",          // SQL run when triggered, or null if not needed
+  "condition_expr": "rows.length > 0" | null,  // only fire the action when this holds
+  "action_type": "send_email",
+  "action_config": {
+    "to": [],                          // leave empty to default to the user's own email
+    "subject": "Email subject (may use {{count}} placeholder)",
+    "template": "report" | "alert" | "reminder",
+    "include_table": true,             // attach the query result rows as a table
+    "include_summary": true,           // ask the LLM to summarize the data in the email
+    "max_rows": 50
+  },
+  "trigger_label": "Human description of when it runs, e.g. 'Every Monday at 9:00 AM'",
+  "confidence": "high" | "medium" | "low"
+}
+
+TRIGGER TYPES:
+- "schedule": runs on a cron clock. trigger_config = { "cron": "0 9 * * 1", "timezone": "Europe/Paris" }.
+  Cron is 5 fields: minute hour day-of-month month day-of-week. day-of-week: 0=Sunday..6=Saturday.
+  Examples: every Monday 9am = "0 9 * * 1"; every day 8am = "0 8 * * *"; 1st of month 7am = "0 7 1 * *"; every hour = "0 * * * *".
+- "threshold": fires when a numeric column crosses a value. trigger_config = { "table": "s5_inventory", "column": "stock", "operator": "<", "value": 10 }. operator is one of < <= > >= = !=.
+  For threshold, query_sql should SELECT the rows that breach the threshold (e.g. SELECT * FROM s5_inventory WHERE stock < 10).
+- "date_proximity": fires when a DATE column is N days away from today. trigger_config = { "table": "s5_clients", "column": "contract_end", "days_before": 7 }. Use days_before for upcoming dates; use a negative number for N days after.
+  For date_proximity, query_sql should SELECT rows where the date column is the target distance away.
+
+TEMPLATE CHOICE:
+- Scheduled digests / summaries → "report"
+- Threshold breaches / warnings → "alert"
+- Upcoming-date reminders → "reminder"
+
+RULES:
+- Default trigger_type to "schedule" if the user describes a clock/calendar cadence.
+- For "every morning" assume 8:00; "every Monday" assume 9:00 Monday; pick sensible defaults when a time isn't given.
+- condition_expr should be "rows.length > 0" when the email is only worth sending if there IS matching data (alerts, "if any orders are pending"). For unconditional digests use null.
+- Use ILIKE '%value%' for person-name filters in query_sql; otherwise standard SQL.
+- Output valid JSON only.`;
+
+export interface ParsedAutomation {
+  name: string;
+  description?: string;
+  trigger_type: 'schedule' | 'threshold' | 'date_proximity';
+  trigger_config: Record<string, unknown>;
+  query_sql: string | null;
+  condition_expr: string | null;
+  action_type: 'send_email';
+  action_config: Record<string, unknown>;
+  trigger_label?: string;
+  confidence?: string;
+}
+
+export async function parseAutomation(
+  userMessage: string,
+  sessionContext: string
+): Promise<ParsedAutomation> {
+  const prompt = `${sessionContext ? sessionContext + '\n\n' : ''}User request: "${userMessage}"\n\nReturn the automation definition JSON.`;
+
+  let text: string;
+  if (provider === 'claude') {
+    const claude = getClaude();
+    const resp = await claude.messages.create({
+      model: process.env.CLAUDE_MODEL ?? 'claude-opus-4-6',
+      max_tokens: 1500,
+      system: PARSE_AUTOMATION_PROMPT,
+      messages: [{ role: 'user', content: prompt }],
+    });
+    const block = resp.content[0];
+    text = block.type === 'text' ? block.text.trim() : '{}';
+  } else {
+    const groq = getGroq();
+    const resp = await groq.chat.completions.create({
+      model: process.env.GROQ_MODEL ?? 'llama-3.3-70b-versatile',
+      max_tokens: 1500,
+      messages: [
+        { role: 'system', content: PARSE_AUTOMATION_PROMPT },
+        { role: 'user', content: prompt },
+      ],
+    });
+    text = resp.choices[0]?.message?.content?.trim() ?? '{}';
+  }
+
+  text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
+  return JSON.parse(text) as ParsedAutomation;
+}
+
+// ─── Email content generation (summary + next-action suggestion) ───────────────
+
+const EMAIL_CONTENT_PROMPT = `You are writing the body of an automated business email for Morph.
+You are given the automation's purpose and the data rows it found.
+Produce STRICT JSON: { "summary": "...", "suggestion": "..." }
+
+- "summary": 2-3 natural sentences summarizing what the data shows. Use exact names and numbers from the rows. Sound like a helpful assistant briefing a busy business owner. No markdown.
+- "suggestion": ONE practical next-action sentence based on the data (e.g. "Consider restocking Oak, now at 8 units."). If nothing actionable, use an empty string.
+- Never invent data not present in the rows. Never mention SQL, tables, or databases.
+- Output ONLY the JSON object.`;
+
+export async function generateEmailContent(
+  purpose: string,
+  rows: Record<string, unknown>[]
+): Promise<{ summary: string; suggestion: string }> {
+  const rowSummary =
+    rows.length === 0
+      ? 'No rows matched.'
+      : `${rows.length} row(s):\n${rows.slice(0, 30).map((r) => JSON.stringify(r)).join('\n')}`;
+  const prompt = `Automation purpose: ${purpose}\n\nData found:\n${rowSummary}\n\nReturn the email content JSON.`;
+
+  try {
+    let text: string;
+    if (provider === 'claude') {
+      const claude = getClaude();
+      const resp = await claude.messages.create({
+        model: process.env.CLAUDE_MODEL ?? 'claude-opus-4-6',
+        max_tokens: 400,
+        system: EMAIL_CONTENT_PROMPT,
+        messages: [{ role: 'user', content: prompt }],
+      });
+      const block = resp.content[0];
+      text = block.type === 'text' ? block.text.trim() : '{}';
+    } else {
+      const groq = getGroq();
+      const resp = await groq.chat.completions.create({
+        model: process.env.GROQ_MODEL ?? 'llama-3.3-70b-versatile',
+        max_tokens: 400,
+        messages: [
+          { role: 'system', content: EMAIL_CONTENT_PROMPT },
+          { role: 'user', content: prompt },
+        ],
+      });
+      text = resp.choices[0]?.message?.content?.trim() ?? '{}';
+    }
+    text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
+    const parsed = JSON.parse(text);
+    return { summary: parsed.summary ?? '', suggestion: parsed.suggestion ?? '' };
+  } catch {
+    return { summary: '', suggestion: '' };
+  }
+}
+
 export { provider };

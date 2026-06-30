@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/imxro/.claude/projects/c--Users-imxro-Desktop-Morph/memory/**)",
+      "PowerShell(npx tsc --noEmit)",
+      "PowerShell(cd C:\\\\Users\\\\imxro\\\\Desktop\\\\Morph\\\\backend; $env:LLM_PROVIDER='groq'; $p = Start-Process -FilePath \"npx\" -ArgumentList \"ts-node\",\"src/index.ts\" -NoNewWindow -RedirectStandardOutput \"boot.log\" -RedirectStandardError \"boot.err.log\" -PassThru; Start-Sleep -Seconds 9; if\\(-not $p.HasExited\\){ Stop-Process -Id $p.Id -Force }; Write-Output \"=== STDOUT ===\"; Get-Content boot.log -ErrorAction SilentlyContinue; Write-Output \"=== STDERR ===\"; Get-Content boot.err.log -ErrorAction SilentlyContinue; Remove-Item boot.log,boot.err.log -ErrorAction SilentlyContinue)",
+      "Bash(sed 's#://[^@]*@#://***@#')",
+      "Bash(node -e \"require\\('dotenv/config'\\); const{Pool}=require\\('pg'\\); const p=new Pool\\({connectionString:process.env.DATABASE_URL}\\); p.query\\('SELECT 1 AS ok'\\).then\\(r=>{console.log\\('DB OK',r.rows[0]\\);process.exit\\(0\\)}\\).catch\\(e=>{console.log\\('DB ERR',e.message\\);process.exit\\(1\\)}\\);\")",
+      "Bash(./node_modules/.bin/ts-node src/index.ts)",
+      "Bash(echo \"started pid $!\")",
+      "Bash(node -e ' *)",
+      "Bash(node \"C:/Users/imxro/AppData/Local/Temp/claude/c--Users-imxro-Desktop-Morph/64c3d215-cdc8-4521-9755-02a982598eb3/scratchpad/e2e.js\")",
+      "Bash(NODE_PATH=\"$\\(pwd\\)/node_modules\" node \"C:/Users/imxro/AppData/Local/Temp/claude/c--Users-imxro-Desktop-Morph/64c3d215-cdc8-4521-9755-02a982598eb3/scratchpad/e2e.js\")",
+      "Bash(NODE_PATH=__CMDSUB_OUTPUT__/node_modules node -e ' *)",
+      "PowerShell(cd C:\\\\Users\\\\imxro\\\\Desktop\\\\Morph\\\\backend; npx tsc --noEmit; Write-Output \"=== BACKEND done \\($LASTEXITCODE\\) ===\"; cd C:\\\\Users\\\\imxro\\\\Desktop\\\\Morph\\\\morphfront; npx tsc --noEmit; Write-Output \"=== FRONTEND done \\($LASTEXITCODE\\) ===\")",
+      "PowerShell($conns = Get-NetTCPConnection -LocalPort 3001 -State Listen -ErrorAction SilentlyContinue; foreach\\($c in $conns\\){ $p = Get-Process -Id $c.OwningProcess -ErrorAction SilentlyContinue; [PSCustomObject]@{ PID=$c.OwningProcess; Name=$p.Name; Path=$p.Path; Started=$p.StartTime } })",
+      "Bash(NODE_PATH=\"$\\(pwd\\)/node_modules\" node \"C:/Users/imxro/AppData/Local/Temp/claude/c--Users-imxro-Desktop-Morph/64c3d215-cdc8-4521-9755-02a982598eb3/scratchpad/notes_e2e.js\")",
+      "PowerShell($c = Get-NetTCPConnection -LocalPort 3001 -State Listen -ErrorAction SilentlyContinue; if\\($c\\){ Stop-Process -Id $c.OwningProcess -Force; \"killed node PID $\\($c.OwningProcess\\)\" } else { \"nothing on 3001\" })"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\imxro\\.claude\\projects\\c--Users-imxro-Desktop-Morph\\memory"
+    ]
+  }
+}

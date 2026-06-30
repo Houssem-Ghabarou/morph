@@ -89,4 +89,81 @@ export async function runMigrations() {
       UNIQUE(session_id, connection_id)
     )
   `);
+
+  // ─── Automation engine ──────────────────────────────────────────────────────
+
+  // Per-user email/SMTP configuration. One row per user.
+  await query(`
+    CREATE TABLE IF NOT EXISTS morph_smtp_settings (
+      id           SERIAL PRIMARY KEY,
+      user_id      INTEGER NOT NULL REFERENCES morph_users(id) ON DELETE CASCADE,
+      provider     TEXT NOT NULL DEFAULT 'smtp',
+      host         TEXT,
+      port         INTEGER,
+      secure       BOOLEAN DEFAULT FALSE,
+      smtp_user    TEXT,
+      smtp_pass    TEXT,
+      from_name    TEXT,
+      from_email   TEXT,
+      api_key      TEXT,
+      created_at   TIMESTAMP DEFAULT NOW(),
+      updated_at   TIMESTAMP DEFAULT NOW(),
+      UNIQUE(user_id)
+    )
+  `);
+
+  // Automation definitions. trigger_config / action_config are type-specific JSON.
+  await query(`
+    CREATE TABLE IF NOT EXISTS morph_automations (
+      id             SERIAL PRIMARY KEY,
+      user_id        INTEGER NOT NULL REFERENCES morph_users(id) ON DELETE CASCADE,
+      session_id     INTEGER REFERENCES morph_sessions(id) ON DELETE CASCADE,
+      name           TEXT NOT NULL,
+      description    TEXT,
+      enabled        BOOLEAN DEFAULT TRUE,
+      trigger_type   TEXT NOT NULL,
+      trigger_config JSONB NOT NULL DEFAULT '{}',
+      source_table   TEXT,
+      query_sql      TEXT,
+      condition_expr TEXT,
+      action_type    TEXT NOT NULL DEFAULT 'send_email',
+      action_config  JSONB NOT NULL DEFAULT '{}',
+      cooldown_minutes INTEGER,
+      last_run_at    TIMESTAMP,
+      last_fired_at  TIMESTAMP,
+      next_run_at    TIMESTAMP,
+      run_count      INTEGER DEFAULT 0,
+      created_at     TIMESTAMP DEFAULT NOW(),
+      updated_at     TIMESTAMP DEFAULT NOW()
+    )
+  `);
+
+  // Floating sticky notes pinned to the canvas, per session.
+  await query(`
+    CREATE TABLE IF NOT EXISTS morph_session_notes (
+      id          SERIAL PRIMARY KEY,
+      session_id  INTEGER NOT NULL REFERENCES morph_sessions(id) ON DELETE CASCADE,
+      content     TEXT NOT NULL DEFAULT '',
+      color       TEXT NOT NULL DEFAULT 'yellow',
+      pos_x       FLOAT NOT NULL DEFAULT 120,
+      pos_y       FLOAT NOT NULL DEFAULT 120,
+      created_at  TIMESTAMP DEFAULT NOW(),
+      updated_at  TIMESTAMP DEFAULT NOW()
+    )
+  `);
+
+  // Execution log — every run is recorded regardless of outcome (audit-first).
+  await query(`
+    CREATE TABLE IF NOT EXISTS morph_automation_runs (
+      id             SERIAL PRIMARY KEY,
+      automation_id  INTEGER NOT NULL REFERENCES morph_automations(id) ON DELETE CASCADE,
+      status         TEXT NOT NULL,
+      trigger_reason TEXT,
+      rows_affected  INTEGER,
+      action_result  TEXT,
+      error_message  TEXT,
+      duration_ms    INTEGER,
+      executed_at    TIMESTAMP DEFAULT NOW()
+    )
+  `);
 }
